@@ -8,347 +8,153 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <title>TrackGuard</title>
-
-<!-- Leaflet avec fallback -->
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="">
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
-
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Rajdhani:wght@500;600;700&family=JetBrains+Mono:wght@400;600&display=swap');
+:root{--bg:#060a14;--surface:#0d1424;--surface2:#131d30;--accent:#00d4ff;--accent2:#ff4757;--accent3:#2ed573;--warn:#ffa502;--text:#e8f4f8;--text2:#7a9bb5;--border:rgba(0,212,255,0.15);--glow:rgba(0,212,255,0.3);}
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent;touch-action:manipulation;}
+html,body{width:100%;height:100%;font-family:'Rajdhani',sans-serif;background:var(--bg);color:var(--text);overflow:hidden;position:fixed;}
+#map{position:absolute;inset:0;z-index:1;background:#0d1424;}
+.leaflet-tile-pane{filter:saturate(0.6) brightness(0.8);}
 
-:root {
-  --bg: #060a14;
-  --surface: #0d1424;
-  --surface2: #131d30;
-  --accent: #00d4ff;
-  --accent2: #ff4757;
-  --accent3: #2ed573;
-  --warn: #ffa502;
-  --text: #e8f4f8;
-  --text2: #7a9bb5;
-  --border: rgba(0,212,255,0.15);
-  --glow: rgba(0,212,255,0.3);
-}
+/* HUD TOP */
+#hud-top{position:absolute;top:0;left:0;right:0;z-index:100;display:flex;align-items:center;justify-content:space-between;padding:12px 16px 10px;padding-top:calc(env(safe-area-inset-top,0px) + 12px);background:linear-gradient(to bottom,rgba(6,10,20,0.96) 70%,transparent);pointer-events:none;}
+#hud-top>*{pointer-events:auto;}
+.logo{font-size:20px;font-weight:700;letter-spacing:3px;color:var(--accent);text-shadow:0 0 20px var(--glow);text-transform:uppercase;}
+.logo span{color:var(--accent2);}
+#speed-box{text-align:center;line-height:1;}
+#speed-val{font-family:'JetBrains Mono',monospace;font-size:30px;font-weight:600;color:var(--accent);text-shadow:0 0 12px var(--glow);display:block;}
+#speed-unit{font-size:10px;color:var(--text2);letter-spacing:2px;text-transform:uppercase;}
+#btn-history{width:44px;height:44px;border-radius:12px;background:var(--surface);border:1px solid var(--border);color:var(--text);font-size:20px;display:flex;align-items:center;justify-content:center;cursor:pointer;}
 
-* { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color:transparent; touch-action:manipulation; }
+/* STATUS */
+#status-bar{position:absolute;top:70px;left:50%;transform:translateX(-50%);z-index:102;background:rgba(13,20,36,0.9);border:1px solid var(--border);border-radius:20px;padding:5px 14px;font-size:12px;color:var(--text2);letter-spacing:1px;white-space:nowrap;transition:opacity .3s;}
+#status-bar.hidden{opacity:0;pointer-events:none;}
 
-html, body {
-  width:100%; height:100%;
-  font-family:'Rajdhani',sans-serif;
-  background:var(--bg);
-  color:var(--text);
-  overflow:hidden;
-  position:fixed;
-}
+/* ALERT 10s */
+#alert-banner{position:absolute;top:74px;left:12px;right:12px;z-index:200;background:linear-gradient(135deg,rgba(255,71,87,0.97),rgba(180,30,45,0.97));border:1px solid var(--accent2);border-radius:16px;padding:12px 16px 16px;display:flex;align-items:center;gap:12px;box-shadow:0 4px 30px rgba(255,71,87,0.5);transform:translateY(-200px);transition:transform .4s cubic-bezier(0.34,1.56,0.64,1);pointer-events:none;overflow:hidden;}
+#alert-banner.show{transform:translateY(0);pointer-events:auto;}
+#alert-icon{font-size:30px;flex-shrink:0;}
+#alert-body{flex:1;}
+#alert-title{font-size:16px;font-weight:700;letter-spacing:1px;}
+#alert-sub{font-size:12px;color:rgba(255,255,255,0.75);margin-top:3px;}
+#alert-progress{position:absolute;bottom:0;left:0;height:4px;background:rgba(255,255,255,0.7);border-radius:0 4px 4px 0;width:100%;}
 
-#map {
-  position:absolute;
-  top:0; left:0; right:0; bottom:0;
-  z-index:1;
-  background:#0d1424;
-}
+/* ADD HINT */
+#add-hint{position:absolute;top:74px;left:50%;transform:translateX(-50%);z-index:150;background:rgba(255,165,2,0.95);color:#060a14;padding:8px 18px;border-radius:20px;font-size:13px;font-weight:700;letter-spacing:1px;white-space:nowrap;display:none;pointer-events:none;}
+#add-hint.show{display:block;}
 
-/* Filtre carte sombre */
-.leaflet-tile-pane { filter: saturate(0.6) brightness(0.8); }
+/* SENS BADGE */
+#sens-badge{position:absolute;bottom:145px;left:14px;z-index:100;background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:5px 10px;font-size:11px;color:var(--text2);letter-spacing:1px;display:none;}
+#sens-badge.show{display:block;}
+#sens-txt{font-weight:700;}
+#sens-badge.fwd #sens-txt{color:var(--accent3);}
+#sens-badge.bwd #sens-txt{color:var(--accent2);}
 
-/* ── HUD TOP ── */
-#hud-top {
-  position:absolute; top:0; left:0; right:0;
-  z-index:100;
-  display:flex; align-items:center; justify-content:space-between;
-  padding:env(safe-area-inset-top, 12px) 16px 10px;
-  padding-top: calc(env(safe-area-inset-top, 0px) + 12px);
-  background:linear-gradient(to bottom, rgba(6,10,20,0.96) 70%, transparent);
-  pointer-events:none;
-}
-#hud-top > * { pointer-events:auto; }
+/* GPS INFO */
+#gps-info{position:absolute;bottom:145px;right:14px;z-index:100;background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:5px 10px;font-size:11px;color:var(--text2);letter-spacing:1px;}
+#gps-info span{color:var(--accent3);font-family:'JetBrains Mono',monospace;}
 
-.logo {
-  font-size:20px; font-weight:700; letter-spacing:3px;
-  color:var(--accent); text-shadow:0 0 20px var(--glow);
-  text-transform:uppercase; line-height:1;
-}
-.logo span { color:var(--accent2); }
+/* HUD BOTTOM */
+#hud-bottom{position:absolute;bottom:0;left:0;right:0;z-index:100;padding:10px 14px;padding-bottom:calc(env(safe-area-inset-bottom,0px) + 14px);background:linear-gradient(to top,rgba(6,10,20,0.98) 75%,transparent);}
+#stats-bar{display:flex;gap:8px;margin-bottom:10px;}
+.stat-box{flex:1;background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:8px 6px;text-align:center;}
+.stat-val{font-family:'JetBrains Mono',monospace;font-size:18px;font-weight:600;color:var(--accent);line-height:1;}
+.stat-lbl{font-size:9px;color:var(--text2);letter-spacing:1.5px;margin-top:3px;text-transform:uppercase;}
+#btn-row{display:flex;gap:8px;align-items:center;}
+#btn-add-danger{width:54px;height:54px;border-radius:14px;flex-shrink:0;background:rgba(255,165,2,0.1);border:1px solid var(--warn);color:var(--warn);font-size:24px;display:flex;align-items:center;justify-content:center;cursor:pointer;transition:all .2s;}
+#btn-add-danger.active{background:var(--warn);color:var(--bg);}
+#btn-record{flex:1;height:54px;border-radius:14px;background:rgba(46,213,115,0.1);border:1.5px solid var(--accent3);color:var(--accent3);font-family:'Rajdhani',sans-serif;font-size:15px;font-weight:700;letter-spacing:2px;text-transform:uppercase;cursor:pointer;transition:all .3s;}
+#btn-record.recording{background:rgba(255,71,87,0.1);border-color:var(--accent2);color:var(--accent2);animation:pulse-rec 1.5s ease-in-out infinite;}
+@keyframes pulse-rec{0%,100%{box-shadow:0 0 10px rgba(255,71,87,0.2);}50%{box-shadow:0 0 25px rgba(255,71,87,0.5);}}
+#btn-center{width:54px;height:54px;border-radius:14px;flex-shrink:0;background:var(--surface);border:1px solid var(--border);color:var(--accent);font-size:22px;display:flex;align-items:center;justify-content:center;cursor:pointer;}
+.dmk{font-size:26px;line-height:1;cursor:pointer;filter:drop-shadow(0 0 5px rgba(255,165,2,0.7));}
 
-#speed-box {
-  text-align:center; line-height:1;
-}
-#speed-val {
-  font-family:'JetBrains Mono',monospace;
-  font-size:30px; font-weight:600;
-  color:var(--accent); text-shadow:0 0 12px var(--glow);
-  display:block;
-}
-#speed-unit { font-size:10px; color:var(--text2); letter-spacing:2px; text-transform:uppercase; }
+/* MODALS */
+.overlay{position:fixed;inset:0;z-index:500;background:rgba(6,10,20,0.88);backdrop-filter:blur(6px);display:flex;align-items:flex-end;justify-content:center;opacity:0;pointer-events:none;transition:opacity .25s;}
+.overlay.show{opacity:1;pointer-events:auto;}
+.sheet{background:var(--surface);border:1px solid var(--border);border-radius:22px 22px 0 0;padding:16px 18px 24px;width:100%;max-width:520px;max-height:88vh;overflow-y:auto;transform:translateY(100%);transition:transform .35s cubic-bezier(0.34,1.56,0.64,1);padding-bottom:calc(env(safe-area-inset-bottom,0px) + 24px);}
+.overlay.show .sheet{transform:translateY(0);}
+.sheet-handle{width:42px;height:4px;background:var(--border);border-radius:2px;margin:0 auto 16px;}
+.sheet-title{font-size:17px;font-weight:700;letter-spacing:2px;text-transform:uppercase;color:var(--accent);margin-bottom:16px;}
+label{display:block;font-size:11px;color:var(--text2);letter-spacing:1px;text-transform:uppercase;margin-bottom:5px;}
+input,select,textarea{width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:10px;color:var(--text);font-family:'Rajdhani',sans-serif;font-size:15px;padding:10px 12px;outline:none;margin-bottom:12px;}
+input:focus,select:focus,textarea:focus{border-color:var(--accent);}
+select option{background:var(--surface2);}
+textarea{resize:none;height:64px;}
+.btn{width:100%;padding:14px;border:none;border-radius:12px;cursor:pointer;font-family:'Rajdhani',sans-serif;font-size:15px;font-weight:700;letter-spacing:2px;text-transform:uppercase;margin-top:4px;}
+.btn-primary{background:linear-gradient(135deg,var(--accent),#0099cc);color:var(--bg);}
+.btn-ghost{background:var(--surface2);border:1px solid var(--border);color:var(--text2);}
+.tabs{display:flex;gap:6px;margin-bottom:14px;}
+.tab{flex:1;padding:9px;text-align:center;border-radius:8px;background:var(--surface2);border:1px solid var(--border);color:var(--text2);font-family:'Rajdhani',sans-serif;font-size:13px;font-weight:600;letter-spacing:1px;text-transform:uppercase;cursor:pointer;}
+.tab.active{background:rgba(0,212,255,0.1);border-color:var(--accent);color:var(--accent);}
+.card{background:var(--surface2);border:1px solid var(--border);border-radius:12px;padding:12px 14px;margin-bottom:8px;}
+.card-row{display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;}
+.card-date{font-size:12px;color:var(--text2);}
+.card-stats{display:flex;gap:14px;margin-top:6px;flex-wrap:wrap;}
+.cstat{font-size:12px;color:var(--text2);}
+.cstat strong{color:var(--accent);font-family:'JetBrains Mono',monospace;}
+.btn-icon{background:none;border:none;font-size:18px;cursor:pointer;padding:2px 6px;}
+.danger-row{background:var(--surface2);border:1px solid rgba(255,165,2,0.2);border-radius:10px;padding:10px 12px;margin-bottom:8px;display:flex;align-items:center;gap:10px;}
+.di{font-size:22px;flex-shrink:0;}
+.dn{flex:1;}
+.dn-title{font-size:14px;font-weight:600;color:var(--warn);}
+.dn-coord{font-size:10px;color:var(--text2);font-family:'JetBrains Mono',monospace;margin-top:2px;}
+.dn-actions{display:flex;gap:6px;}
+.dna{background:var(--surface);border:1px solid var(--border);color:var(--text2);padding:5px 9px;border-radius:7px;cursor:pointer;font-size:13px;}
+.recap-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:16px;}
+.recap-box{background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:16px;text-align:center;}
+.recap-val{font-family:'JetBrains Mono',monospace;font-size:24px;font-weight:600;color:var(--accent);}
+.recap-lbl{font-size:10px;color:var(--text2);text-transform:uppercase;letter-spacing:1.5px;margin-top:4px;}
+.empty{text-align:center;padding:30px;color:var(--text2);}
+.empty-icon{font-size:36px;margin-bottom:8px;}
 
-#btn-history {
-  width:44px; height:44px; border-radius:12px;
-  background:var(--surface); border:1px solid var(--border);
-  color:var(--text); font-size:20px;
-  display:flex; align-items:center; justify-content:center;
-  cursor:pointer;
-}
+/* MODAL SENS */
+.dir-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px;}
+.dir-btn{padding:18px 10px;border-radius:14px;border:1.5px solid var(--border);background:var(--surface2);color:var(--text2);font-family:'Rajdhani',sans-serif;font-size:13px;font-weight:700;letter-spacing:1px;text-transform:uppercase;cursor:pointer;text-align:center;transition:all .2s;}
+.dir-btn .dir-icon{font-size:32px;display:block;margin-bottom:8px;}
+.dir-btn.selected,.dir-btn:active{background:rgba(0,212,255,0.12);border-color:var(--accent);color:var(--accent);}
+.dir-hint{font-size:12px;color:var(--text2);text-align:center;margin-bottom:14px;line-height:1.6;background:var(--surface2);border-radius:10px;padding:10px;}
 
-/* ── STATUS BAR ── */
-#status-bar {
-  position:absolute; top:70px; left:50%; transform:translateX(-50%);
-  z-index:102;
-  background:rgba(13,20,36,0.9);
-  border:1px solid var(--border);
-  border-radius:20px;
-  padding:5px 14px;
-  font-size:12px; color:var(--text2); letter-spacing:1px;
-  white-space:nowrap;
-  transition:opacity .3s;
-}
-#status-bar.hidden { opacity:0; pointer-events:none; }
-
-/* ── ALERT ── */
-#alert-banner {
-  position:absolute; top:74px; left:12px; right:12px;
-  z-index:200;
-  background:linear-gradient(135deg, rgba(255,71,87,0.97), rgba(180,30,45,0.97));
-  border:1px solid var(--accent2);
-  border-radius:16px;
-  padding:12px 16px;
-  display:flex; align-items:center; gap:12px;
-  box-shadow:0 4px 30px rgba(255,71,87,0.5);
-  transform:translateY(-200px);
-  transition:transform .4s cubic-bezier(0.34,1.56,0.64,1);
-  pointer-events:none;
-}
-#alert-banner.show { transform:translateY(0); pointer-events:auto; }
-#alert-icon { font-size:30px; flex-shrink:0; }
-#alert-title { font-size:16px; font-weight:700; letter-spacing:1px; }
-#alert-sub { font-size:12px; color:rgba(255,255,255,0.75); margin-top:3px; }
-
-/* ── ADD MODE HINT ── */
-#add-hint {
-  position:absolute; top:74px; left:50%; transform:translateX(-50%);
-  z-index:150;
-  background:rgba(255,165,2,0.95);
-  color:#060a14;
-  padding:8px 18px; border-radius:20px;
-  font-size:13px; font-weight:700; letter-spacing:1px;
-  white-space:nowrap;
-  display:none;
-  pointer-events:none;
-}
-#add-hint.show { display:block; }
-
-/* ── HUD BOTTOM ── */
-#hud-bottom {
-  position:absolute; bottom:0; left:0; right:0;
-  z-index:100;
-  padding:10px 14px;
-  padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 14px);
-  background:linear-gradient(to top, rgba(6,10,20,0.98) 75%, transparent);
-}
-
-#stats-bar {
-  display:flex; gap:8px; margin-bottom:10px;
-}
-.stat-box {
-  flex:1; background:var(--surface); border:1px solid var(--border);
-  border-radius:10px; padding:8px 6px; text-align:center;
-}
-.stat-val {
-  font-family:'JetBrains Mono',monospace;
-  font-size:18px; font-weight:600; color:var(--accent); line-height:1;
-}
-.stat-lbl { font-size:9px; color:var(--text2); letter-spacing:1.5px; margin-top:3px; text-transform:uppercase; }
-
-#btn-row {
-  display:flex; gap:8px; align-items:center;
-}
-
-#btn-add-danger {
-  width:54px; height:54px; border-radius:14px; flex-shrink:0;
-  background:rgba(255,165,2,0.1); border:1px solid var(--warn);
-  color:var(--warn); font-size:24px;
-  display:flex; align-items:center; justify-content:center;
-  cursor:pointer; transition:all .2s;
-}
-#btn-add-danger.active { background:var(--warn); color:var(--bg); }
-
-#btn-record {
-  flex:1; height:54px; border-radius:14px;
-  background:rgba(46,213,115,0.1); border:1.5px solid var(--accent3);
-  color:var(--accent3);
-  font-family:'Rajdhani',sans-serif; font-size:15px; font-weight:700;
-  letter-spacing:2px; text-transform:uppercase;
-  cursor:pointer; transition:all .3s;
-}
-#btn-record.recording {
-  background:rgba(255,71,87,0.1); border-color:var(--accent2);
-  color:var(--accent2);
-  animation:pulse-rec 1.5s ease-in-out infinite;
-}
-@keyframes pulse-rec {
-  0%,100% { box-shadow:0 0 10px rgba(255,71,87,0.2); }
-  50% { box-shadow:0 0 25px rgba(255,71,87,0.5); }
-}
-
-#btn-center {
-  width:54px; height:54px; border-radius:14px; flex-shrink:0;
-  background:var(--surface); border:1px solid var(--border);
-  color:var(--accent); font-size:22px;
-  display:flex; align-items:center; justify-content:center;
-  cursor:pointer;
-}
-
-/* ── USER DOT ── */
-.user-dot {
-  width:20px; height:20px; border-radius:50%;
-  background:var(--accent); border:3px solid #fff;
-  box-shadow:0 0 0 5px rgba(0,212,255,0.25), 0 0 20px rgba(0,212,255,0.6);
-}
-.user-arrow {
-  width:0; height:0;
-  border-left:8px solid transparent;
-  border-right:8px solid transparent;
-  border-bottom:16px solid var(--accent);
-  filter:drop-shadow(0 0 4px rgba(0,212,255,0.8));
-}
-
-/* ── DANGER MARKER ── */
-.dmk { font-size:26px; line-height:1; cursor:pointer; filter:drop-shadow(0 0 5px rgba(255,165,2,0.7)); }
-
-/* ── ACCURACY ── */
-#gps-info {
-  position:absolute; bottom:140px; right:14px;
-  z-index:100;
-  background:var(--surface); border:1px solid var(--border);
-  border-radius:8px; padding:5px 10px;
-  font-size:11px; color:var(--text2); letter-spacing:1px;
-}
-#gps-info span { color:var(--accent3); font-family:'JetBrains Mono',monospace; }
-
-/* ── MODALS ── */
-.overlay {
-  position:fixed; inset:0; z-index:500;
-  background:rgba(6,10,20,0.88);
-  backdrop-filter:blur(6px);
-  display:flex; align-items:flex-end; justify-content:center;
-  opacity:0; pointer-events:none;
-  transition:opacity .25s;
-}
-.overlay.show { opacity:1; pointer-events:auto; }
-
-.sheet {
-  background:var(--surface); border:1px solid var(--border);
-  border-radius:22px 22px 0 0;
-  padding:16px 18px 24px;
-  width:100%; max-width:520px;
-  max-height:88vh; overflow-y:auto;
-  transform:translateY(100%);
-  transition:transform .35s cubic-bezier(0.34,1.56,0.64,1);
-  padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 24px);
-}
-.overlay.show .sheet { transform:translateY(0); }
-
-.sheet-handle {
-  width:42px; height:4px; background:var(--border);
-  border-radius:2px; margin:0 auto 16px;
-}
-.sheet-title {
-  font-size:17px; font-weight:700; letter-spacing:2px;
-  text-transform:uppercase; color:var(--accent); margin-bottom:16px;
-}
-
-label { display:block; font-size:11px; color:var(--text2); letter-spacing:1px; text-transform:uppercase; margin-bottom:5px; }
-input, select, textarea {
-  width:100%; background:var(--surface2); border:1px solid var(--border);
-  border-radius:10px; color:var(--text);
-  font-family:'Rajdhani',sans-serif; font-size:15px;
-  padding:10px 12px; outline:none; margin-bottom:12px;
-}
-input:focus, select:focus, textarea:focus { border-color:var(--accent); }
-select option { background:var(--surface2); }
-textarea { resize:none; height:64px; }
-
-.btn { width:100%; padding:14px; border:none; border-radius:12px; cursor:pointer; font-family:'Rajdhani',sans-serif; font-size:15px; font-weight:700; letter-spacing:2px; text-transform:uppercase; margin-top:4px; }
-.btn-primary { background:linear-gradient(135deg,var(--accent),#0099cc); color:var(--bg); }
-.btn-ghost { background:var(--surface2); border:1px solid var(--border); color:var(--text2); }
-.btn-red { background:rgba(255,71,87,0.15); border:1px solid var(--accent2); color:var(--accent2); }
-
-/* tabs */
-.tabs { display:flex; gap:6px; margin-bottom:14px; }
-.tab { flex:1; padding:9px; text-align:center; border-radius:8px; background:var(--surface2); border:1px solid var(--border); color:var(--text2); font-family:'Rajdhani',sans-serif; font-size:13px; font-weight:600; letter-spacing:1px; text-transform:uppercase; cursor:pointer; }
-.tab.active { background:rgba(0,212,255,0.1); border-color:var(--accent); color:var(--accent); }
-
-/* cards */
-.card { background:var(--surface2); border:1px solid var(--border); border-radius:12px; padding:12px 14px; margin-bottom:8px; }
-.card-row { display:flex; justify-content:space-between; align-items:center; margin-bottom:4px; }
-.card-date { font-size:12px; color:var(--text2); }
-.card-stats { display:flex; gap:14px; margin-top:6px; }
-.cstat { font-size:12px; color:var(--text2); }
-.cstat strong { color:var(--accent); font-family:'JetBrains Mono',monospace; }
-.btn-icon { background:none; border:none; font-size:18px; cursor:pointer; padding:2px 6px; }
-
-.danger-row { background:var(--surface2); border:1px solid rgba(255,165,2,0.2); border-radius:10px; padding:10px 12px; margin-bottom:8px; display:flex; align-items:center; gap:10px; }
-.di { font-size:22px; flex-shrink:0; }
-.dn { flex:1; }
-.dn-title { font-size:14px; font-weight:600; color:var(--warn); }
-.dn-coord { font-size:10px; color:var(--text2); font-family:'JetBrains Mono',monospace; margin-top:2px; }
-.dn-actions { display:flex; gap:6px; }
-.dna { background:var(--surface); border:1px solid var(--border); color:var(--text2); padding:5px 9px; border-radius:7px; cursor:pointer; font-size:13px; }
-
-/* recap grid */
-.recap-grid { display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-bottom:16px; }
-.recap-box { background:var(--surface2); border:1px solid var(--border); border-radius:10px; padding:16px; text-align:center; }
-.recap-val { font-family:'JetBrains Mono',monospace; font-size:24px; font-weight:600; color:var(--accent); }
-.recap-lbl { font-size:10px; color:var(--text2); text-transform:uppercase; letter-spacing:1.5px; margin-top:4px; }
-
-.empty { text-align:center; padding:30px; color:var(--text2); }
-.empty-icon { font-size:36px; margin-bottom:8px; }
-
-/* popup */
-.leaflet-popup-content-wrapper { background:var(--surface) !important; border:1px solid var(--border) !important; border-radius:12px !important; color:var(--text) !important; font-family:'Rajdhani',sans-serif !important; box-shadow:0 4px 20px rgba(0,0,0,0.5) !important; }
-.leaflet-popup-tip-container { display:none; }
-.leaflet-popup-content { margin:12px 14px !important; }
-.pu-title { font-size:15px; font-weight:700; color:var(--warn); margin-bottom:4px; }
-.pu-desc { font-size:12px; color:var(--text2); margin-bottom:4px; }
-.pu-radius { font-size:11px; color:var(--text2); margin-bottom:10px; }
-.pu-actions { display:flex; gap:8px; }
-.pu-btn { padding:5px 12px; border-radius:8px; cursor:pointer; font-family:'Rajdhani',sans-serif; font-size:13px; font-weight:600; border:1px solid; background:transparent; }
-.pu-edit { border-color:var(--accent); color:var(--accent); }
-.pu-del { border-color:var(--accent2); color:var(--accent2); }
+/* Popup */
+.leaflet-popup-content-wrapper{background:var(--surface)!important;border:1px solid var(--border)!important;border-radius:12px!important;color:var(--text)!important;font-family:'Rajdhani',sans-serif!important;box-shadow:0 4px 20px rgba(0,0,0,0.5)!important;}
+.leaflet-popup-tip-container{display:none;}
+.leaflet-popup-content{margin:12px 14px!important;}
+.pu-title{font-size:15px;font-weight:700;color:var(--warn);margin-bottom:4px;}
+.pu-desc{font-size:12px;color:var(--text2);margin-bottom:4px;}
+.pu-radius{font-size:11px;color:var(--text2);margin-bottom:10px;}
+.pu-actions{display:flex;gap:8px;}
+.pu-btn{padding:5px 12px;border-radius:8px;cursor:pointer;font-family:'Rajdhani',sans-serif;font-size:13px;font-weight:600;border:1px solid;background:transparent;}
+.pu-edit{border-color:var(--accent);color:var(--accent);}
+.pu-del{border-color:var(--accent2);color:var(--accent2);}
 </style>
 </head>
 <body>
 
 <div id="map"></div>
 
-<!-- HUD TOP -->
 <div id="hud-top">
   <div class="logo">Track<span>Guard</span></div>
-  <div id="speed-box">
-    <span id="speed-val">0</span>
-    <span id="speed-unit">km/h</span>
-  </div>
+  <div id="speed-box"><span id="speed-val">0</span><span id="speed-unit">km/h</span></div>
   <button id="btn-history">📋</button>
 </div>
 
-<!-- STATUS -->
 <div id="status-bar">📡 Recherche GPS...</div>
 
-<!-- ALERT -->
 <div id="alert-banner">
   <div id="alert-icon">⚠️</div>
-  <div>
+  <div id="alert-body">
     <div id="alert-title">Danger</div>
     <div id="alert-sub">Vous approchez</div>
   </div>
+  <div id="alert-progress"></div>
 </div>
 
-<!-- ADD HINT -->
 <div id="add-hint">👆 Touchez la carte pour placer le danger</div>
-
-<!-- GPS INFO -->
 <div id="gps-info">GPS ±<span id="acc-val">--</span>m</div>
+<div id="sens-badge">Sens : <span id="sens-txt">--</span></div>
 
-<!-- HUD BOTTOM -->
 <div id="hud-bottom">
   <div id="stats-bar">
     <div class="stat-box"><div class="stat-val" id="stat-dist">0.00</div><div class="stat-lbl">km</div></div>
@@ -391,6 +197,38 @@ textarea { resize:none; height:64px; }
   </div>
 </div>
 
+<!-- MODAL SENS DE MARCHE -->
+<div class="overlay" id="ov-direction">
+  <div class="sheet">
+    <div class="sheet-handle"></div>
+    <div class="sheet-title">🧭 Sens de déplacement</div>
+    <div class="dir-hint">
+      📱 Dans quel sens tenez-vous votre téléphone par rapport à votre direction de marche ?<br><br>
+      <strong>Exemple :</strong> si l'écran fait face à vous et que vous avancez, choisissez <strong>FACE À VOUS</strong>.
+    </div>
+    <div class="dir-grid">
+      <button class="dir-btn selected" id="dir-forward">
+        <span class="dir-icon">⬆️</span>
+        VERS L'AVANT
+      </button>
+      <button class="dir-btn" id="dir-backward">
+        <span class="dir-icon">⬇️</span>
+        VERS L'ARRIÈRE
+      </button>
+      <button class="dir-btn" id="dir-left">
+        <span class="dir-icon">⬅️</span>
+        CÔTÉ GAUCHE
+      </button>
+      <button class="dir-btn" id="dir-right">
+        <span class="dir-icon">➡️</span>
+        CÔTÉ DROIT
+      </button>
+    </div>
+    <button class="btn btn-primary" id="btn-confirm-dir">▶ DÉMARRER L'ENREGISTREMENT</button>
+    <button class="btn btn-ghost" id="btn-cancel-dir">ANNULER</button>
+  </div>
+</div>
+
 <!-- MODAL HISTORY -->
 <div class="overlay" id="ov-history">
   <div class="sheet">
@@ -422,476 +260,429 @@ textarea { resize:none; height:64px; }
 </div>
 
 <script>
-// ═══════════════════════════════════════
+// ════════════════════════════════════════
 // STATE
-// ═══════════════════════════════════════
-let map, userMarker = null, userPos = null;
-let dangers = [], sessions = [];
-let dangerMarkers = {};
-let addMode = false, editId = null, pendingPos = null;
-let recording = false, recTimer = null, elapsedSec = 0, totalDist = 0;
-let lastPos = null, alerted = new Set(), alertTimeout = null;
-let audioCtx = null, sessionDangersCrossed = 0;
+// ════════════════════════════════════════
+let map, userMarker=null, userPos=null, userHeading=0;
+let dangers=[], sessions=[];
+let dangerMarkers={};
+let addMode=false, editId=null, pendingPos=null;
+let recording=false, recTimer=null, elapsedSec=0, totalDist=0;
+let lastPos=null, alerted=new Set(), alertTimeout=null;
+let audioCtx=null, sessionDangersCrossed=0;
+let trackPolyline=null, trackPoints=[];
+let forwardDir=null;       // cap "avant" en degrés (calculé au démarrage)
+let selectedDirOffset=0;   // décalage selon position téléphone
+const DIR_OFFSETS={forward:0,backward:180,left:270,right:90};
+let selectedDirKey='forward';
 
-// ═══════════════════════════════════════
+// ════════════════════════════════════════
 // STORAGE
-// ═══════════════════════════════════════
-function save() {
-  try {
-    localStorage.setItem('tg2_dangers', JSON.stringify(dangers));
-    localStorage.setItem('tg2_sessions', JSON.stringify(sessions));
-  } catch(e) {}
-}
-function load() {
-  try { dangers = JSON.parse(localStorage.getItem('tg2_dangers') || '[]'); } catch(e) { dangers = []; }
-  try { sessions = JSON.parse(localStorage.getItem('tg2_sessions') || '[]'); } catch(e) { sessions = []; }
-}
+// ════════════════════════════════════════
+function save(){try{localStorage.setItem('tg3_dangers',JSON.stringify(dangers));localStorage.setItem('tg3_sessions',JSON.stringify(sessions));}catch(e){}}
+function load(){try{dangers=JSON.parse(localStorage.getItem('tg3_dangers')||'[]');}catch(e){dangers=[];}try{sessions=JSON.parse(localStorage.getItem('tg3_sessions')||'[]');}catch(e){sessions=[];}}
 
-// ═══════════════════════════════════════
+// ════════════════════════════════════════
 // MAP
-// ═══════════════════════════════════════
-function initMap() {
-  // Vérif que Leaflet est chargé
-  if (typeof L === 'undefined') {
-    setStatus('❌ Erreur de chargement — Vérifiez votre connexion internet');
-    return;
-  }
-
-  map = L.map('map', {
-    zoomControl: false,
-    attributionControl: true,
-    tap: true,
-    tapTolerance: 15,
-    center: [46.2276, 2.2137],
-    zoom: 6
-  });
-
-  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-    maxZoom: 19,
-    attribution: '© <a href="https://openstreetmap.org">OpenStreetMap</a>'
-  }).addTo(map);
-
-  map.on('click', function(e) {
-    if (!addMode) return;
-    pendingPos = [e.latlng.lat, e.latlng.lng];
-    editId = null;
-    openDangerModal(false);
-  });
-
-  setStatus('📡 Recherche GPS...');
+// ════════════════════════════════════════
+function initMap(){
+  if(typeof L==='undefined'){setStatus('❌ Carte non chargée — vérifiez la connexion');return;}
+  map=L.map('map',{zoomControl:false,attributionControl:true,tap:true,tapTolerance:15,center:[46.2276,2.2137],zoom:6});
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19,attribution:'© OpenStreetMap'}).addTo(map);
+  map.on('click',e=>{if(!addMode)return;pendingPos=[e.latlng.lat,e.latlng.lng];editId=null;openDangerModal(false);});
   startGPS();
 }
 
-// ═══════════════════════════════════════
-// GPS
-// ═══════════════════════════════════════
-let firstFix = true;
-let watchId = null;
-
-function startGPS() {
-  if (!navigator.geolocation) {
-    setStatus('❌ GPS non disponible sur ce navigateur');
-    return;
-  }
-  watchId = navigator.geolocation.watchPosition(
-    onGPSSuccess,
-    onGPSError,
-    { enableHighAccuracy: true, timeout: 15000, maximumAge: 2000 }
-  );
+// ════════════════════════════════════════
+// MARQUEUR FLÈCHE (style Waze)
+// ════════════════════════════════════════
+function makeArrowIcon(deg){
+  const svg=`<svg xmlns="http://www.w3.org/2000/svg" width="44" height="44" viewBox="0 0 44 44">
+    <defs>
+      <filter id="gw" x="-50%" y="-50%" width="200%" height="200%">
+        <feGaussianBlur stdDeviation="2.5" result="b"/>
+        <feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
+      </filter>
+    </defs>
+    <!-- Halo extérieur -->
+    <circle cx="22" cy="26" r="13" fill="rgba(0,212,255,0.15)"/>
+    <!-- Corps principal -->
+    <circle cx="22" cy="26" r="10" fill="#00d4ff" filter="url(#gw)"/>
+    <circle cx="22" cy="26" r="10" fill="none" stroke="white" stroke-width="2.5"/>
+    <!-- Pointe directionnelle -->
+    <polygon points="22,3 15,20 29,20" fill="#00d4ff" filter="url(#gw)"/>
+    <polygon points="22,3 15,20 29,20" fill="none" stroke="white" stroke-width="2" stroke-linejoin="round"/>
+    <!-- Dot blanc central -->
+    <circle cx="22" cy="26" r="3.5" fill="white"/>
+  </svg>`;
+  return L.divIcon({
+    html:`<div style="width:44px;height:44px;transform:rotate(${deg}deg);transform-origin:50% 59%;">${svg}</div>`,
+    iconSize:[44,44], iconAnchor:[22,26], className:''
+  });
 }
 
-function onGPSSuccess(pos) {
-  const lat = pos.coords.latitude;
-  const lng = pos.coords.longitude;
-  const acc = pos.coords.accuracy;
-  const spd = pos.coords.speed;
-
-  userPos = [lat, lng];
-  document.getElementById('acc-val').textContent = Math.round(acc);
-
-  // Vitesse
-  const kmh = spd != null ? Math.round(spd * 3.6) : 0;
-  document.getElementById('speed-val').textContent = kmh;
-
-  // Marqueur utilisateur
-  if (!userMarker) {
-    const icon = L.divIcon({ html: '<div class="user-dot"></div>', iconSize:[20,20], iconAnchor:[10,10], className:'' });
-    userMarker = L.marker(userPos, { icon, zIndexOffset:1000 }).addTo(map);
+function updateUserMarker(pos,hdg){
+  if(!userMarker){
+    userMarker=L.marker(pos,{icon:makeArrowIcon(hdg),zIndexOffset:1000}).addTo(map);
   } else {
-    userMarker.setLatLng(userPos);
+    userMarker.setLatLng(pos);
+    userMarker.setIcon(makeArrowIcon(hdg));
+  }
+}
+
+// ════════════════════════════════════════
+// GPS
+// ════════════════════════════════════════
+let firstFix=true, prevPos=null;
+
+function startGPS(){
+  if(!navigator.geolocation){setStatus('❌ GPS non disponible');return;}
+  navigator.geolocation.watchPosition(onGPS,onGPSErr,{enableHighAccuracy:true,timeout:15000,maximumAge:1000});
+}
+
+function onGPS(pos){
+  const lat=pos.coords.latitude, lng=pos.coords.longitude;
+  const acc=pos.coords.accuracy, spd=pos.coords.speed, hdg=pos.coords.heading;
+  userPos=[lat,lng];
+  document.getElementById('acc-val').textContent=Math.round(acc);
+  document.getElementById('speed-val').textContent=spd!=null&&spd>0?Math.round(spd*3.6):0;
+
+  // Cap : GPS heading prioritaire, sinon calculé
+  if(hdg!=null&&!isNaN(hdg)&&spd>0.3){
+    userHeading=hdg;
+  } else if(prevPos&&distM(prevPos,userPos)>1.5){
+    userHeading=bearing(prevPos,userPos);
   }
 
-  // Premier fix : centrer
-  if (firstFix) {
-    firstFix = false;
-    map.setView(userPos, 16);
-    setStatus('✅ GPS actif', true);
-  }
+  updateUserMarker(userPos,userHeading);
 
-  // Distance si enregistrement
-  if (recording && lastPos) {
-    const d = haversine(lastPos, userPos);
-    if (d > 0.0003 && d < 0.15) {
-      totalDist += d;
-      document.getElementById('stat-dist').textContent = totalDist.toFixed(2);
+  if(firstFix){firstFix=false;map.setView(userPos,16);setStatus('✅ GPS actif',true);}
+
+  // Enregistrement : comptage distance + tracé
+  if(recording&&lastPos){
+    const d=distM(lastPos,userPos);
+    if(d>0.5&&d<150){
+      const moveBear=bearing(lastPos,userPos);
+      if(isForward(moveBear)){
+        totalDist+=d/1000;
+        document.getElementById('stat-dist').textContent=totalDist.toFixed(2);
+        trackPoints.push([...userPos]);
+        updateTrack();
+        setSensBadge(true);
+      } else {
+        setSensBadge(false);
+      }
     }
   }
-  if (recording) lastPos = [...userPos];
-
+  if(recording) lastPos=[...userPos];
+  prevPos=[...userPos];
   checkAlerts();
 }
 
-function onGPSError(err) {
-  const msgs = {
-    1: '🚫 Autorisation GPS refusée — Autorisez dans les paramètres Chrome',
-    2: '📡 Signal GPS indisponible',
-    3: '⏱️ Timeout GPS — Réessai...'
-  };
-  setStatus(msgs[err.code] || '❌ Erreur GPS');
-  if (err.code === 3) setTimeout(startGPS, 3000);
+function onGPSErr(e){
+  const m={1:'🚫 GPS refusé — autorisez dans Chrome > Paramètres du site',2:'📡 Signal GPS absent',3:'⏱️ Timeout GPS'};
+  setStatus(m[e.code]||'❌ Erreur GPS');
 }
 
-function setStatus(msg, hide = false) {
-  const el = document.getElementById('status-bar');
-  el.textContent = msg;
-  el.classList.remove('hidden');
-  if (hide) setTimeout(() => el.classList.add('hidden'), 3000);
+// ════════════════════════════════════════
+// GÉOMÉTRIE
+// ════════════════════════════════════════
+function haversine(a,b){
+  const R=6371,dLat=(b[0]-a[0])*Math.PI/180,dLon=(b[1]-a[1])*Math.PI/180;
+  const s=Math.sin(dLat/2)**2+Math.cos(a[0]*Math.PI/180)*Math.cos(b[0]*Math.PI/180)*Math.sin(dLon/2)**2;
+  return R*2*Math.atan2(Math.sqrt(s),Math.sqrt(1-s));
+}
+function distM(a,b){return haversine(a,b)*1000;}
+function bearing(a,b){
+  const la=a[0]*Math.PI/180,lb=b[0]*Math.PI/180,dl=(b[1]-a[1])*Math.PI/180;
+  const y=Math.sin(dl)*Math.cos(lb);
+  const x=Math.cos(la)*Math.sin(lb)-Math.sin(la)*Math.cos(lb)*Math.cos(dl);
+  return(Math.atan2(y,x)*180/Math.PI+360)%360;
+}
+function angleDiff(a,b){let d=Math.abs(a-b)%360;return d>180?360-d:d;}
+function isForward(moveBear){
+  if(forwardDir===null)return true;
+  return angleDiff(moveBear,forwardDir)<=90;
 }
 
-// ═══════════════════════════════════════
-// HAVERSINE
-// ═══════════════════════════════════════
-function haversine(a, b) {
-  const R = 6371;
-  const dLat = (b[0]-a[0]) * Math.PI/180;
-  const dLon = (b[1]-a[1]) * Math.PI/180;
-  const s1 = Math.sin(dLat/2), s2 = Math.sin(dLon/2);
-  const c = s1*s1 + Math.cos(a[0]*Math.PI/180)*Math.cos(b[0]*Math.PI/180)*s2*s2;
-  return R * 2 * Math.atan2(Math.sqrt(c), Math.sqrt(1-c));
+// ════════════════════════════════════════
+// SENS BADGE
+// ════════════════════════════════════════
+function setSensBadge(fwd){
+  const el=document.getElementById('sens-badge');
+  const txt=document.getElementById('sens-txt');
+  el.classList.add('show');
+  if(fwd){el.className='show fwd';txt.textContent='▲ EN AVANT';}
+  else{el.className='show bwd';txt.textContent='▼ ARRIÈRE (ignoré)';}
 }
-function distM(a, b) { return haversine(a,b) * 1000; }
 
-// ═══════════════════════════════════════
-// ALERTS
-// ═══════════════════════════════════════
-function checkAlerts() {
-  if (!userPos) return;
-  for (const d of dangers) {
-    const dist = distM(userPos, [d.lat, d.lng]);
-    const r = d.radius || 25;
-    if (dist <= r && !alerted.has(d.id)) {
-      alerted.add(d.id);
-      sessionDangersCrossed++;
-      triggerAlert(d, dist);
-    }
-    if (dist > r * 2.5) alerted.delete(d.id);
+// ════════════════════════════════════════
+// TRACÉ TRAJECTOIRE
+// ════════════════════════════════════════
+function updateTrack(){
+  if(!map||trackPoints.length<2)return;
+  if(trackPolyline){
+    trackPolyline.setLatLngs(trackPoints);
+  } else {
+    trackPolyline=L.polyline(trackPoints,{
+      color:'#00d4ff', weight:5, opacity:0.8,
+      lineJoin:'round', lineCap:'round'
+    }).addTo(map);
+    // Point de départ
+    L.circleMarker(trackPoints[0],{
+      radius:6, color:'#2ed573', fillColor:'#2ed573',
+      fillOpacity:1, weight:2
+    }).addTo(map).bindTooltip('Départ',{permanent:false});
   }
 }
 
-function triggerAlert(d, dist) {
-  document.getElementById('alert-icon').textContent = d.type;
-  document.getElementById('alert-title').textContent = d.title;
-  document.getElementById('alert-sub').textContent = (d.desc || 'Soyez prudent') + ` · ${Math.round(dist)}m`;
-  document.getElementById('alert-banner').classList.add('show');
-  beep();
+function clearTrack(){
+  if(trackPolyline){map.removeLayer(trackPolyline);trackPolyline=null;}
+  trackPoints=[];
+}
+
+// ════════════════════════════════════════
+// ALERTES (10 secondes)
+// ════════════════════════════════════════
+const ALERT_MS=10000;
+
+function checkAlerts(){
+  if(!userPos)return;
+  for(const d of dangers){
+    const dist=distM(userPos,[d.lat,d.lng]);
+    const r=d.radius||25;
+    if(dist<=r&&!alerted.has(d.id)){alerted.add(d.id);sessionDangersCrossed++;triggerAlert(d,Math.round(dist));}
+    if(dist>r*2.5)alerted.delete(d.id);
+  }
+}
+
+function triggerAlert(d,dist){
   clearTimeout(alertTimeout);
-  alertTimeout = setTimeout(() => {
+  document.getElementById('alert-icon').textContent=d.type;
+  document.getElementById('alert-title').textContent=d.title;
+  document.getElementById('alert-sub').textContent=(d.desc||'Soyez prudent')+` · à ${dist}m`;
+  document.getElementById('alert-banner').classList.add('show');
+
+  // Barre de progression sur 10s
+  const bar=document.getElementById('alert-progress');
+  bar.style.transition='none';bar.style.width='100%';
+  requestAnimationFrame(()=>requestAnimationFrame(()=>{
+    bar.style.transition=`width ${ALERT_MS}ms linear`;
+    bar.style.width='0%';
+  }));
+
+  beep();
+  alertTimeout=setTimeout(()=>{
     document.getElementById('alert-banner').classList.remove('show');
-  }, 5000);
+  },ALERT_MS);
 }
 
-function beep() {
-  try {
-    if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-    const ctx = audioCtx;
-    [[880,0,0.12],[1200,0.18,0.12],[880,0.36,0.2]].forEach(([f,t,d]) => {
-      const o = ctx.createOscillator();
-      const g = ctx.createGain();
-      o.connect(g); g.connect(ctx.destination);
-      o.type = 'sine'; o.frequency.value = f;
-      g.gain.setValueAtTime(0.4, ctx.currentTime + t);
-      g.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + t + d);
-      o.start(ctx.currentTime + t);
-      o.stop(ctx.currentTime + t + d + 0.05);
+function beep(){
+  try{
+    if(!audioCtx)audioCtx=new(window.AudioContext||window.webkitAudioContext)();
+    const ctx=audioCtx;
+    [[880,0,0.13],[1200,0.2,0.13],[880,0.4,0.22]].forEach(([f,t,d])=>{
+      const o=ctx.createOscillator(),g=ctx.createGain();
+      o.connect(g);g.connect(ctx.destination);
+      o.type='sine';o.frequency.value=f;
+      g.gain.setValueAtTime(0.4,ctx.currentTime+t);
+      g.gain.exponentialRampToValueAtTime(0.001,ctx.currentTime+t+d);
+      o.start(ctx.currentTime+t);o.stop(ctx.currentTime+t+d+0.05);
     });
-  } catch(e) { console.log('Audio error:', e); }
+  }catch(e){}
 }
 
-// ═══════════════════════════════════════
-// BUTTONS — Utilisez addEventListener avec touchend pour Chrome Android
-// ═══════════════════════════════════════
-function addTap(id, fn) {
-  const el = document.getElementById(id);
-  if (!el) return;
-  // Click fonctionne sur desktop et Android Chrome
-  el.addEventListener('click', function(e) { e.preventDefault(); fn(e); });
-}
+// ════════════════════════════════════════
+// BOUTONS
+// ════════════════════════════════════════
+function tap(id,fn){const el=document.getElementById(id);if(el)el.addEventListener('click',e=>{e.preventDefault();fn(e);});}
+function unlockAudio(){if(!audioCtx){try{audioCtx=new(window.AudioContext||window.webkitAudioContext)();}catch(e){}}}
 
-addTap('btn-add-danger', () => {
-  if (!map) return;
-  // Unlock audio sur interaction utilisateur
-  if (!audioCtx) { try { audioCtx = new (window.AudioContext || window.webkitAudioContext)(); } catch(e){} }
-  addMode = !addMode;
-  document.getElementById('btn-add-danger').classList.toggle('active', addMode);
-  document.getElementById('add-hint').classList.toggle('show', addMode);
-  if (map) map.getContainer().style.cursor = addMode ? 'crosshair' : '';
+tap('btn-add-danger',()=>{
+  unlockAudio();
+  addMode=!addMode;
+  document.getElementById('btn-add-danger').classList.toggle('active',addMode);
+  document.getElementById('add-hint').classList.toggle('show',addMode);
+  if(map)map.getContainer().style.cursor=addMode?'crosshair':'';
 });
 
-addTap('btn-record', () => {
-  if (!audioCtx) { try { audioCtx = new (window.AudioContext || window.webkitAudioContext)(); } catch(e){} }
-  recording ? stopRecord() : startRec();
+tap('btn-record',()=>{
+  unlockAudio();
+  if(recording)stopRecord();
+  else openDirModal();
 });
 
-addTap('btn-center', () => {
-  if (userPos && map) map.setView(userPos, 17);
+tap('btn-center',()=>{
+  if(userPos&&map)map.setView(userPos,17);
   else setStatus('📡 GPS pas encore disponible...');
 });
 
-addTap('btn-history', openHistory);
-addTap('btn-save-d', saveDanger);
-addTap('btn-cancel-d', closeDangerModal);
-addTap('btn-close-hist', () => document.getElementById('ov-history').classList.remove('show'));
-addTap('btn-close-recap', () => document.getElementById('ov-recap').classList.remove('show'));
+tap('btn-history',openHistory);
+tap('btn-save-d',saveDanger);
+tap('btn-cancel-d',closeDangerModal);
+tap('btn-close-hist',()=>document.getElementById('ov-history').classList.remove('show'));
+tap('btn-close-recap',()=>document.getElementById('ov-recap').classList.remove('show'));
 
-// Fermer alert au tap
-document.getElementById('alert-banner').addEventListener('click', () => {
+document.getElementById('alert-banner').addEventListener('click',()=>{
+  clearTimeout(alertTimeout);
   document.getElementById('alert-banner').classList.remove('show');
 });
 
-// Tabs
-document.querySelectorAll('.tab').forEach(t => {
-  t.addEventListener('click', () => {
-    document.querySelectorAll('.tab').forEach(x => x.classList.remove('active'));
-    t.classList.add('active');
-    const tab = t.dataset.tab;
-    document.getElementById('tab-sessions').style.display = tab === 'sessions' ? 'block' : 'none';
-    document.getElementById('tab-dangers-list').style.display = tab === 'dangers' ? 'block' : 'none';
+document.querySelectorAll('.tab').forEach(t=>t.addEventListener('click',()=>{
+  document.querySelectorAll('.tab').forEach(x=>x.classList.remove('active'));
+  t.classList.add('active');
+  const tab=t.dataset.tab;
+  document.getElementById('tab-sessions').style.display=tab==='sessions'?'block':'none';
+  document.getElementById('tab-dangers-list').style.display=tab==='dangers'?'block':'none';
+}));
+
+// ════════════════════════════════════════
+// MODAL SENS DE MARCHE
+// ════════════════════════════════════════
+function openDirModal(){
+  if(!userPos){setStatus('📡 GPS non disponible, attendez...');return;}
+  selectedDirKey='forward';
+  document.querySelectorAll('.dir-btn').forEach(b=>b.classList.remove('selected'));
+  document.getElementById('dir-forward').classList.add('selected');
+  document.getElementById('ov-direction').classList.add('show');
+}
+
+['forward','backward','left','right'].forEach(dir=>{
+  tap(`dir-${dir}`,()=>{
+    selectedDirKey=dir;
+    document.querySelectorAll('.dir-btn').forEach(b=>b.classList.remove('selected'));
+    document.getElementById(`dir-${dir}`).classList.add('selected');
   });
 });
 
-// ═══════════════════════════════════════
-// DANGER MODAL
-// ═══════════════════════════════════════
-function openDangerModal(editing, d = null) {
-  document.getElementById('danger-title').textContent = editing ? '✏️ Modifier le danger' : '⚠️ Nouveau danger';
-  if (editing && d) {
-    document.getElementById('d-type').value = d.type;
-    document.getElementById('d-title-in').value = d.title;
-    document.getElementById('d-desc-in').value = d.desc || '';
-    document.getElementById('d-radius-in').value = d.radius || 25;
-  } else {
-    document.getElementById('d-type').value = '⚠️';
-    document.getElementById('d-title-in').value = '';
-    document.getElementById('d-desc-in').value = '';
-    document.getElementById('d-radius-in').value = 25;
-  }
-  document.getElementById('ov-danger').classList.add('show');
-}
+tap('btn-confirm-dir',()=>{
+  document.getElementById('ov-direction').classList.remove('show');
+  selectedDirOffset=DIR_OFFSETS[selectedDirKey];
+  // Cap "avant" = cap actuel + offset du téléphone
+  forwardDir=(userHeading+selectedDirOffset)%360;
+  startRec();
+});
 
-function closeDangerModal() {
-  document.getElementById('ov-danger').classList.remove('show');
-  addMode = false; pendingPos = null; editId = null;
-  document.getElementById('btn-add-danger').classList.remove('active');
-  document.getElementById('add-hint').classList.remove('show');
-  if (map) map.getContainer().style.cursor = '';
-}
+tap('btn-cancel-dir',()=>document.getElementById('ov-direction').classList.remove('show'));
 
-function saveDanger() {
-  const title = document.getElementById('d-title-in').value.trim();
-  if (!title) { alert('Le titre est obligatoire'); return; }
-  const type = document.getElementById('d-type').value;
-  const desc = document.getElementById('d-desc-in').value.trim();
-  const radius = parseInt(document.getElementById('d-radius-in').value) || 25;
-
-  if (editId !== null) {
-    const d = dangers.find(x => x.id === editId);
-    if (d) { d.type=type; d.title=title; d.desc=desc; d.radius=radius; refreshMarker(d); }
-  } else if (pendingPos) {
-    const d = { id: Date.now(), lat: pendingPos[0], lng: pendingPos[1], type, title, desc, radius };
-    dangers.push(d);
-    addMarker(d);
-  }
-  save(); updateDangerCount(); closeDangerModal();
-}
-
-// ═══════════════════════════════════════
-// MARKERS
-// ═══════════════════════════════════════
-function addMarker(d) {
-  if (!map) return;
-  const icon = L.divIcon({ html:`<div class="dmk">${d.type}</div>`, iconSize:[32,32], iconAnchor:[16,16], className:'' });
-  const m = L.marker([d.lat, d.lng], { icon }).addTo(map);
-  m.bindPopup(makePopup(d), { maxWidth: 240 });
-  dangerMarkers[d.id] = m;
-}
-
-function makePopup(d) {
-  return `<div class="pu-title">${d.type} ${d.title}</div>
-    <div class="pu-desc">${d.desc || ''}</div>
-    <div class="pu-radius">Rayon : ${d.radius}m</div>
-    <div class="pu-actions">
-      <button class="pu-btn pu-edit" onclick="editDanger(${d.id})">✏️ Modifier</button>
-      <button class="pu-btn pu-del" onclick="delDanger(${d.id})">🗑️</button>
-    </div>`;
-}
-
-function refreshMarker(d) {
-  const m = dangerMarkers[d.id];
-  if (m) { m.setPopupContent(makePopup(d)); }
-}
-
-function updateDangerCount() {
-  document.getElementById('stat-ndanger').textContent = dangers.length;
-}
-
-window.editDanger = function(id) {
-  editId = id;
-  const d = dangers.find(x => x.id === id);
-  if (map) map.closePopup();
-  openDangerModal(true, d);
-};
-
-window.delDanger = function(id) {
-  if (!confirm('Supprimer ce danger ?')) return;
-  dangers = dangers.filter(d => d.id !== id);
-  if (dangerMarkers[id]) { map.removeLayer(dangerMarkers[id]); delete dangerMarkers[id]; }
-  save(); updateDangerCount();
-  if (map) map.closePopup();
-};
-
-// ═══════════════════════════════════════
-// RECORDING
-// ═══════════════════════════════════════
-function startRec() {
-  if (!userPos) { setStatus('📡 GPS non disponible, attendez...'); return; }
-  recording = true; elapsedSec = 0; totalDist = 0;
-  lastPos = [...userPos]; alerted.clear(); sessionDangersCrossed = 0;
-  document.getElementById('btn-record').textContent = '⏹ ARRÊTER';
+// ════════════════════════════════════════
+// ENREGISTREMENT
+// ════════════════════════════════════════
+function startRec(){
+  recording=true;elapsedSec=0;totalDist=0;
+  lastPos=[...userPos];alerted.clear();sessionDangersCrossed=0;
+  clearTrack();
+  trackPoints.push([...userPos]);
+  document.getElementById('btn-record').textContent='⏹ ARRÊTER';
   document.getElementById('btn-record').classList.add('recording');
-  document.getElementById('stat-dist').textContent = '0.00';
-  document.getElementById('stat-time').textContent = '00:00';
-  recTimer = setInterval(() => {
+  document.getElementById('stat-dist').textContent='0.00';
+  document.getElementById('stat-time').textContent='00:00';
+  document.getElementById('sens-badge').classList.add('show');
+  recTimer=setInterval(()=>{
     elapsedSec++;
-    const m = String(Math.floor(elapsedSec/60)).padStart(2,'0');
-    const s = String(elapsedSec%60).padStart(2,'0');
-    document.getElementById('stat-time').textContent = `${m}:${s}`;
-  }, 1000);
+    document.getElementById('stat-time').textContent=
+      `${String(Math.floor(elapsedSec/60)).padStart(2,'0')}:${String(elapsedSec%60).padStart(2,'0')}`;
+  },1000);
 }
 
-function stopRecord() {
-  recording = false; clearInterval(recTimer);
-  document.getElementById('btn-record').textContent = '▶ DÉMARRER';
+function stopRecord(){
+  recording=false;clearInterval(recTimer);
+  document.getElementById('btn-record').textContent='▶ DÉMARRER';
   document.getElementById('btn-record').classList.remove('recording');
-  const avgSpd = elapsedSec > 0 ? (totalDist / (elapsedSec/3600)).toFixed(1) : '0';
-  const sess = {
-    id: Date.now(),
-    date: new Date().toLocaleString('fr-FR'),
-    dist: totalDist,
-    time: elapsedSec,
-    avgSpeed: avgSpd,
-    dangersCrossed: sessionDangersCrossed
-  };
+  document.getElementById('sens-badge').classList.remove('show');
+  forwardDir=null;
+  const avgSpd=elapsedSec>0?(totalDist/(elapsedSec/3600)).toFixed(1):'0';
+  const sess={id:Date.now(),date:new Date().toLocaleString('fr-FR'),dist:totalDist,time:elapsedSec,avgSpeed:avgSpd,dangersCrossed:sessionDangersCrossed};
   sessions.unshift(sess);
-  if (sessions.length > 50) sessions.pop();
-  save(); showRecap(sess);
+  if(sessions.length>50)sessions.pop();
+  save();showRecap(sess);
 }
 
-// ═══════════════════════════════════════
+// ════════════════════════════════════════
 // RECAP
-// ═══════════════════════════════════════
-function showRecap(s) {
-  document.getElementById('rc-dist').textContent = s.dist.toFixed(2) + ' km';
-  document.getElementById('rc-time').textContent = fmtTime(s.time);
-  document.getElementById('rc-spd').textContent = s.avgSpeed + ' km/h';
-  document.getElementById('rc-dng').textContent = s.dangersCrossed;
+// ════════════════════════════════════════
+function showRecap(s){
+  document.getElementById('rc-dist').textContent=s.dist.toFixed(2)+' km';
+  document.getElementById('rc-time').textContent=fmtTime(s.time);
+  document.getElementById('rc-spd').textContent=s.avgSpeed+' km/h';
+  document.getElementById('rc-dng').textContent=s.dangersCrossed;
   document.getElementById('ov-recap').classList.add('show');
 }
+function fmtTime(sec){const h=Math.floor(sec/3600),m=Math.floor((sec%3600)/60),s=sec%60;return h>0?`${h}h${String(m).padStart(2,'0')}m`:`${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;}
 
-function fmtTime(sec) {
-  const h = Math.floor(sec/3600);
-  const m = Math.floor((sec%3600)/60);
-  const s = sec%60;
-  if (h > 0) return `${h}h${String(m).padStart(2,'0')}m`;
-  return `${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;
+// ════════════════════════════════════════
+// DANGER MODAL
+// ════════════════════════════════════════
+function openDangerModal(editing,d=null){
+  document.getElementById('danger-title').textContent=editing?'✏️ Modifier le danger':'⚠️ Nouveau danger';
+  if(editing&&d){document.getElementById('d-type').value=d.type;document.getElementById('d-title-in').value=d.title;document.getElementById('d-desc-in').value=d.desc||'';document.getElementById('d-radius-in').value=d.radius||25;}
+  else{document.getElementById('d-type').value='⚠️';document.getElementById('d-title-in').value='';document.getElementById('d-desc-in').value='';document.getElementById('d-radius-in').value=25;}
+  document.getElementById('ov-danger').classList.add('show');
+}
+function closeDangerModal(){
+  document.getElementById('ov-danger').classList.remove('show');
+  addMode=false;pendingPos=null;editId=null;
+  document.getElementById('btn-add-danger').classList.remove('active');
+  document.getElementById('add-hint').classList.remove('show');
+  if(map)map.getContainer().style.cursor='';
+}
+function saveDanger(){
+  const title=document.getElementById('d-title-in').value.trim();
+  if(!title){alert('Le titre est obligatoire');return;}
+  const type=document.getElementById('d-type').value,desc=document.getElementById('d-desc-in').value.trim(),radius=parseInt(document.getElementById('d-radius-in').value)||25;
+  if(editId!==null){const d=dangers.find(x=>x.id===editId);if(d){d.type=type;d.title=title;d.desc=desc;d.radius=radius;refreshMarker(d);}}
+  else if(pendingPos){const d={id:Date.now(),lat:pendingPos[0],lng:pendingPos[1],type,title,desc,radius};dangers.push(d);addMarker(d);}
+  save();updateDangerCount();closeDangerModal();
 }
 
-// ═══════════════════════════════════════
+// ════════════════════════════════════════
+// MARKERS
+// ════════════════════════════════════════
+function addMarker(d){
+  if(!map)return;
+  const icon=L.divIcon({html:`<div class="dmk">${d.type}</div>`,iconSize:[32,32],iconAnchor:[16,16],className:''});
+  const m=L.marker([d.lat,d.lng],{icon}).addTo(map);
+  m.bindPopup(makePopup(d),{maxWidth:240});
+  dangerMarkers[d.id]=m;
+}
+function makePopup(d){return `<div class="pu-title">${d.type} ${d.title}</div><div class="pu-desc">${d.desc||''}</div><div class="pu-radius">Rayon : ${d.radius}m</div><div class="pu-actions"><button class="pu-btn pu-edit" onclick="editDanger(${d.id})">✏️ Modifier</button><button class="pu-btn pu-del" onclick="delDanger(${d.id})">🗑️</button></div>`;}
+function refreshMarker(d){const m=dangerMarkers[d.id];if(m)m.setPopupContent(makePopup(d));}
+function updateDangerCount(){document.getElementById('stat-ndanger').textContent=dangers.length;}
+window.editDanger=function(id){editId=id;const d=dangers.find(x=>x.id===id);if(map)map.closePopup();openDangerModal(true,d);};
+window.delDanger=function(id){if(!confirm('Supprimer ce danger ?'))return;dangers=dangers.filter(d=>d.id!==id);if(dangerMarkers[id]){map.removeLayer(dangerMarkers[id]);delete dangerMarkers[id];}save();updateDangerCount();if(map)map.closePopup();};
+
+// ════════════════════════════════════════
 // HISTORY
-// ═══════════════════════════════════════
-function openHistory() {
-  renderSessions();
-  renderDangers();
-  document.getElementById('ov-history').classList.add('show');
+// ════════════════════════════════════════
+function openHistory(){renderSessions();renderDangers();document.getElementById('ov-history').classList.add('show');}
+function renderSessions(){
+  const el=document.getElementById('tab-sessions');
+  if(!sessions.length){el.innerHTML='<div class="empty"><div class="empty-icon">📍</div>Aucune session</div>';return;}
+  el.innerHTML=sessions.map(s=>`<div class="card"><div class="card-row"><div class="card-date">${s.date}</div><button class="btn-icon" onclick="delSession(${s.id})">🗑️</button></div><div class="card-stats"><div class="cstat">🛣️ <strong>${s.dist.toFixed(2)}</strong> km</div><div class="cstat">⏱️ <strong>${fmtTime(s.time)}</strong></div><div class="cstat">💨 <strong>${s.avgSpeed}</strong> km/h</div></div></div>`).join('');
+}
+function renderDangers(){
+  const el=document.getElementById('tab-dangers-list');
+  if(!dangers.length){el.innerHTML='<div class="empty"><div class="empty-icon">⚠️</div>Aucun danger</div>';return;}
+  el.innerHTML=dangers.map(d=>`<div class="danger-row"><div class="di">${d.type}</div><div class="dn"><div class="dn-title">${d.title}</div><div class="dn-coord">${d.lat.toFixed(5)}, ${d.lng.toFixed(5)} · r:${d.radius}m</div></div><div class="dn-actions"><button class="dna" onclick="gotoD(${d.id})">📍</button><button class="dna" onclick="delDangerList(${d.id})">🗑️</button></div></div>`).join('');
+}
+window.delSession=function(id){if(!confirm('Supprimer ?'))return;sessions=sessions.filter(s=>s.id!==id);save();renderSessions();};
+window.delDangerList=function(id){if(!confirm('Supprimer ?'))return;dangers=dangers.filter(d=>d.id!==id);if(dangerMarkers[id]){map.removeLayer(dangerMarkers[id]);delete dangerMarkers[id];}save();updateDangerCount();renderDangers();};
+window.gotoD=function(id){const d=dangers.find(x=>x.id===id);if(!d||!map)return;document.getElementById('ov-history').classList.remove('show');map.setView([d.lat,d.lng],17);setTimeout(()=>{if(dangerMarkers[id])dangerMarkers[id].openPopup();},500);};
+
+// ════════════════════════════════════════
+// STATUS
+// ════════════════════════════════════════
+function setStatus(msg,hide=false){
+  const el=document.getElementById('status-bar');
+  el.textContent=msg;el.classList.remove('hidden');
+  if(hide)setTimeout(()=>el.classList.add('hidden'),3000);
 }
 
-function renderSessions() {
-  const el = document.getElementById('tab-sessions');
-  if (!sessions.length) {
-    el.innerHTML = '<div class="empty"><div class="empty-icon">📍</div>Aucune session</div>';
-    return;
-  }
-  el.innerHTML = sessions.map(s => `
-    <div class="card">
-      <div class="card-row">
-        <div class="card-date">${s.date}</div>
-        <button class="btn-icon" onclick="delSession(${s.id})">🗑️</button>
-      </div>
-      <div class="card-stats">
-        <div class="cstat">🛣️ <strong>${s.dist.toFixed(2)}</strong> km</div>
-        <div class="cstat">⏱️ <strong>${fmtTime(s.time)}</strong></div>
-        <div class="cstat">💨 <strong>${s.avgSpeed}</strong> km/h</div>
-      </div>
-    </div>
-  `).join('');
-}
-
-function renderDangers() {
-  const el = document.getElementById('tab-dangers-list');
-  if (!dangers.length) {
-    el.innerHTML = '<div class="empty"><div class="empty-icon">⚠️</div>Aucun danger</div>';
-    return;
-  }
-  el.innerHTML = dangers.map(d => `
-    <div class="danger-row">
-      <div class="di">${d.type}</div>
-      <div class="dn">
-        <div class="dn-title">${d.title}</div>
-        <div class="dn-coord">${d.lat.toFixed(5)}, ${d.lng.toFixed(5)} · r:${d.radius}m</div>
-      </div>
-      <div class="dn-actions">
-        <button class="dna" onclick="gotoD(${d.id})">📍</button>
-        <button class="dna" onclick="delDangerList(${d.id})">🗑️</button>
-      </div>
-    </div>
-  `).join('');
-}
-
-window.delSession = function(id) {
-  if (!confirm('Supprimer ?')) return;
-  sessions = sessions.filter(s => s.id !== id);
-  save(); renderSessions();
-};
-
-window.delDangerList = function(id) {
-  if (!confirm('Supprimer ce danger ?')) return;
-  dangers = dangers.filter(d => d.id !== id);
-  if (dangerMarkers[id]) { map.removeLayer(dangerMarkers[id]); delete dangerMarkers[id]; }
-  save(); updateDangerCount(); renderDangers();
-};
-
-window.gotoD = function(id) {
-  const d = dangers.find(x => x.id === id);
-  if (!d || !map) return;
-  document.getElementById('ov-history').classList.remove('show');
-  map.setView([d.lat, d.lng], 17);
-  setTimeout(() => { if (dangerMarkers[id]) dangerMarkers[id].openPopup(); }, 500);
-};
-
-// ═══════════════════════════════════════
+// ════════════════════════════════════════
 // INIT
-// ═══════════════════════════════════════
+// ════════════════════════════════════════
 load();
-document.addEventListener('DOMContentLoaded', () => {
+document.addEventListener('DOMContentLoaded',()=>{
   initMap();
   dangers.forEach(addMarker);
   updateDangerCount();
