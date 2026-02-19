@@ -8,20 +8,40 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <title>TrackGuard</title>
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="">
-<!-- Plugin rotation carte -->
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
-<script src="https://cdn.jsdelivr.net/npm/leaflet-rotate@0.2.8/dist/leaflet-rotate-src.js"></script>
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Rajdhani:wght@500;600;700&family=JetBrains+Mono:wght@400;600&display=swap');
-:root{--bg:#060a14;--surface:#0d1424;--surface2:#131d30;--accent:#00d4ff;--accent2:#ff4757;--accent3:#2ed573;--warn:#ffa502;--text:#e8f4f8;--text2:#7a9bb5;--border:rgba(0,212,255,0.15);--glow:rgba(0,212,255,0.3);}
+:root{
+  --bg:#060a14;--surface:#0d1424;--surface2:#131d30;
+  --accent:#00d4ff;--accent2:#ff4757;--accent3:#2ed573;
+  --warn:#ffa502;--text:#e8f4f8;--text2:#7a9bb5;
+  --border:rgba(0,212,255,0.15);--glow:rgba(0,212,255,0.3);
+}
 *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent;touch-action:manipulation;}
 html,body{width:100%;height:100%;font-family:'Rajdhani',sans-serif;background:var(--bg);color:var(--text);overflow:hidden;position:fixed;}
-#map{position:absolute;inset:0;z-index:1;background:#0d1424;}
+
+/* ── MAP : overflow visible pour que les tuiles restent visibles quand on tourne ── */
+#map{
+  position:absolute;
+  /* Agrandir le conteneur pour que la rotation ne laisse pas de coins vides */
+  top:-30%;left:-30%;right:-30%;bottom:-30%;
+  z-index:1;background:#0d1424;
+  /* La rotation se fait ici via JS */
+  transform-origin:center center;
+  will-change:transform;
+}
+/* Contre-rotation des éléments UI dans la carte (popups, cercle précision) */
+.leaflet-popup-pane,.leaflet-overlay-pane,.leaflet-shadow-pane{
+  /* héritent de la rotation — on les contre-fait via JS si nécessaire */
+}
 .leaflet-tile-pane{filter:saturate(0.6) brightness(0.8);}
 
+/* ── Wrapper qui garde les HUD au bon endroit même avec map agrandi ── */
+#ui-layer{position:fixed;inset:0;z-index:100;pointer-events:none;}
+#ui-layer>*{pointer-events:auto;}
+
 /* HUD TOP */
-#hud-top{position:absolute;top:0;left:0;right:0;z-index:100;display:flex;align-items:center;justify-content:space-between;padding:12px 16px 10px;padding-top:calc(env(safe-area-inset-top,0px)+12px);background:linear-gradient(to bottom,rgba(6,10,20,0.96) 70%,transparent);pointer-events:none;}
-#hud-top>*{pointer-events:auto;}
+#hud-top{position:absolute;top:0;left:0;right:0;display:flex;align-items:center;justify-content:space-between;padding:12px 16px 10px;padding-top:calc(env(safe-area-inset-top,0px)+12px);background:linear-gradient(to bottom,rgba(6,10,20,0.95) 60%,transparent);}
 .logo{font-size:20px;font-weight:700;letter-spacing:3px;color:var(--accent);text-shadow:0 0 20px var(--glow);text-transform:uppercase;}
 .logo span{color:var(--accent2);}
 #speed-box{text-align:center;line-height:1;}
@@ -34,7 +54,7 @@ html,body{width:100%;height:100%;font-family:'Rajdhani',sans-serif;background:va
 #status-bar.hidden{opacity:0;pointer-events:none;}
 
 /* ALERT */
-#alert-banner{position:absolute;top:74px;left:12px;right:12px;z-index:200;background:linear-gradient(135deg,rgba(255,71,87,0.97),rgba(180,30,45,0.97));border:1px solid var(--accent2);border-radius:16px;padding:12px 16px 16px;display:flex;align-items:center;gap:12px;box-shadow:0 4px 30px rgba(255,71,87,0.5);transform:translateY(-200px);transition:transform .4s cubic-bezier(0.34,1.56,0.64,1);pointer-events:none;overflow:hidden;}
+#alert-banner{position:absolute;top:74px;left:12px;right:12px;z-index:200;background:linear-gradient(135deg,rgba(255,71,87,0.97),rgba(180,30,45,0.97));border:1px solid var(--accent2);border-radius:16px;padding:12px 16px 16px;display:flex;align-items:center;gap:12px;box-shadow:0 4px 30px rgba(255,71,87,0.5);transform:translateY(-200px);transition:transform .4s cubic-bezier(0.34,1.56,0.64,1);overflow:hidden;}
 #alert-banner.show{transform:translateY(0);pointer-events:auto;}
 #alert-icon{font-size:30px;flex-shrink:0;}
 #alert-body{flex:1;}
@@ -42,55 +62,54 @@ html,body{width:100%;height:100%;font-family:'Rajdhani',sans-serif;background:va
 #alert-sub{font-size:12px;color:rgba(255,255,255,0.75);margin-top:3px;}
 #alert-progress{position:absolute;bottom:0;left:0;height:4px;background:rgba(255,255,255,0.7);width:100%;}
 
-/* ADD HINT */
-#add-hint{position:absolute;top:74px;left:50%;transform:translateX(-50%);z-index:150;background:rgba(255,165,2,0.95);color:#060a14;padding:8px 18px;border-radius:20px;font-size:13px;font-weight:700;white-space:nowrap;display:none;pointer-events:none;}
-#add-hint.show{display:block;}
-
 /* CALIB BANNER */
 #calib-banner{position:absolute;top:74px;left:12px;right:12px;z-index:180;background:linear-gradient(135deg,rgba(255,165,2,0.97),rgba(180,100,0,0.97));border:1px solid var(--warn);border-radius:16px;padding:14px 16px;display:none;align-items:center;gap:12px;box-shadow:0 4px 20px rgba(255,165,2,0.4);}
 #calib-banner.show{display:flex;}
 #calib-pts{font-family:'JetBrains Mono',monospace;font-size:24px;font-weight:700;color:white;flex-shrink:0;min-width:40px;text-align:center;}
 #calib-txt{font-size:13px;font-weight:600;color:white;line-height:1.4;flex:1;}
-#btn-calib-stop{margin-left:auto;background:white;color:#060a14;border:none;border-radius:10px;padding:8px 14px;font-family:'Rajdhani',sans-serif;font-size:13px;font-weight:700;letter-spacing:1px;cursor:pointer;flex-shrink:0;}
+#btn-calib-stop{margin-left:auto;background:white;color:#060a14;border:none;border-radius:10px;padding:8px 14px;font-family:'Rajdhani',sans-serif;font-size:13px;font-weight:700;cursor:pointer;flex-shrink:0;}
+
+/* ADD HINT */
+#add-hint{position:absolute;top:74px;left:50%;transform:translateX(-50%);z-index:150;background:rgba(255,165,2,0.95);color:#060a14;padding:8px 18px;border-radius:20px;font-size:13px;font-weight:700;white-space:nowrap;display:none;}
+#add-hint.show{display:block;}
+
+/* BOUTON MODE ROTATION — en bas à gauche au-dessus du HUD bottom */
+#btn-rotate-mode{
+  position:absolute;bottom:130px;left:14px;
+  width:44px;height:44px;border-radius:12px;
+  background:var(--surface);border:1px solid var(--border);
+  color:var(--text2);font-size:18px;
+  display:flex;align-items:center;justify-content:center;
+  cursor:pointer;transition:all .2s;
+}
+#btn-rotate-mode.active{border-color:var(--accent);color:var(--accent);background:rgba(0,212,255,0.1);box-shadow:0 0 12px var(--glow);}
+
+/* ROSE DES VENTS — coin haut droit */
+#north-rose{
+  position:absolute;
+  top:calc(env(safe-area-inset-top,0px)+68px);
+  right:14px;
+  width:40px;height:40px;
+  display:none;align-items:center;justify-content:center;
+  cursor:pointer;
+  /* Ne tourne PAS avec la carte, reste en place */
+  transform-origin:center;
+}
+#north-rose.show{display:flex;}
+/* La flèche intérieure de la rose tourne pour montrer le vrai nord */
+#north-needle{transition:transform 0.3s ease;}
 
 /* BADGES */
-#sens-badge{position:absolute;bottom:145px;left:14px;z-index:100;background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:5px 10px;font-size:11px;color:var(--text2);letter-spacing:1px;display:none;}
+#sens-badge{position:absolute;bottom:130px;right:14px;z-index:100;background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:5px 10px;font-size:11px;color:var(--text2);letter-spacing:1px;display:none;}
 #sens-badge.show{display:block;}
 #sens-txt{font-weight:700;}
 #sens-badge.fwd #sens-txt{color:var(--accent3);}
 #sens-badge.bwd #sens-txt{color:var(--accent2);}
-#gps-info{position:absolute;bottom:145px;right:14px;z-index:100;background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:5px 10px;font-size:11px;color:var(--text2);letter-spacing:1px;}
+#gps-info{position:absolute;bottom:173px;right:14px;z-index:100;background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:5px 10px;font-size:11px;color:var(--text2);letter-spacing:1px;}
 #gps-info span{color:var(--accent3);font-family:'JetBrains Mono',monospace;}
 
-/* BOUTON ROTATION CARTE — coin haut gauche */
-#btn-rotate-mode{
-  position:absolute;top:12px;left:16px;
-  top:calc(env(safe-area-inset-top,0px)+12px);
-  z-index:101;
-  width:44px;height:44px;border-radius:12px;
-  background:var(--surface);border:1px solid var(--border);
-  color:var(--text2);font-size:20px;
-  display:flex;align-items:center;justify-content:center;
-  cursor:pointer;transition:all .2s;
-  pointer-events:auto;
-}
-#btn-rotate-mode.active{border-color:var(--accent);color:var(--accent);background:rgba(0,212,255,0.1);box-shadow:0 0 12px var(--glow);}
-
-/* INDICATEUR NORD (rose des vents) — visible en mode rotation */
-#north-indicator{
-  position:absolute;top:68px;right:16px;
-  top:calc(env(safe-area-inset-top,0px)+68px);
-  z-index:101;
-  width:36px;height:36px;
-  display:none;
-  align-items:center;justify-content:center;
-  cursor:pointer;
-}
-#north-indicator.show{display:flex;}
-#north-indicator svg{filter:drop-shadow(0 0 4px rgba(0,0,0,0.5));}
-
 /* HUD BOTTOM */
-#hud-bottom{position:absolute;bottom:0;left:0;right:0;z-index:100;padding:10px 14px;padding-bottom:calc(env(safe-area-inset-bottom,0px)+14px);background:linear-gradient(to top,rgba(6,10,20,0.98) 75%,transparent);}
+#hud-bottom{position:absolute;bottom:0;left:0;right:0;padding:10px 14px;padding-bottom:calc(env(safe-area-inset-bottom,0px)+14px);background:linear-gradient(to top,rgba(6,10,20,0.98) 75%,transparent);}
 #stats-bar{display:flex;gap:8px;margin-bottom:10px;}
 .stat-box{flex:1;background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:8px 6px;text-align:center;}
 .stat-val{font-family:'JetBrains Mono',monospace;font-size:18px;font-weight:600;color:var(--accent);line-height:1;}
@@ -145,12 +164,11 @@ textarea{resize:none;height:64px;}
 .calib-steps{display:flex;flex-direction:column;gap:10px;margin-bottom:16px;}
 .calib-step{display:flex;align-items:flex-start;gap:12px;padding:12px;background:var(--surface2);border-radius:10px;border:1px solid var(--border);}
 .step-num{width:28px;height:28px;border-radius:50%;background:var(--accent);color:var(--bg);font-weight:700;font-size:14px;display:flex;align-items:center;justify-content:center;flex-shrink:0;}
-.step-txt{font-size:13px;color:var(--text2);line-height:1.5;}
-.step-txt strong{color:var(--text);}
+.step-txt{font-size:13px;color:var(--text2);line-height:1.5;}.step-txt strong{color:var(--text);}
 .calib-result{background:rgba(46,213,115,0.1);border:1px solid var(--accent3);border-radius:10px;padding:12px;margin-bottom:12px;text-align:center;display:none;}
 .calib-result.show{display:block;}
-.calib-result .cr-val{font-family:'JetBrains Mono',monospace;font-size:28px;font-weight:700;color:var(--accent3);}
-.calib-result .cr-lbl{font-size:12px;color:var(--text2);margin-top:4px;}
+.cr-val{font-family:'JetBrains Mono',monospace;font-size:28px;font-weight:700;color:var(--accent3);}
+.cr-lbl{font-size:12px;color:var(--text2);margin-top:4px;}
 .leaflet-popup-content-wrapper{background:var(--surface)!important;border:1px solid var(--border)!important;border-radius:12px!important;color:var(--text)!important;font-family:'Rajdhani',sans-serif!important;box-shadow:0 4px 20px rgba(0,0,0,0.5)!important;}
 .leaflet-popup-tip-container{display:none;}
 .leaflet-popup-content{margin:12px 14px!important;}
@@ -165,75 +183,78 @@ textarea{resize:none;height:64px;}
 </head>
 <body>
 
+<!-- LA CARTE occupe tout l'écran (oversized pour la rotation) -->
 <div id="map"></div>
 
-<!-- Bouton mode rotation (remplace le logo pour ne pas surcharger) -->
-<button id="btn-rotate-mode" title="Mode suivi / Nord fixe">🧭</button>
+<!-- COUCHE UI fixe, indépendante de la carte -->
+<div id="ui-layer">
 
-<!-- Indicateur nord en mode rotation -->
-<div id="north-indicator" title="Retour nord">
-  <svg width="36" height="36" viewBox="0 0 36 36">
-    <circle cx="18" cy="18" r="16" fill="rgba(13,20,36,0.85)" stroke="rgba(0,212,255,0.3)" stroke-width="1.5"/>
-    <polygon points="18,5 14,20 18,17 22,20" fill="#ff4757"/>
-    <polygon points="18,31 14,16 18,19 22,16" fill="rgba(255,255,255,0.4)"/>
-    <text x="18" y="10" text-anchor="middle" font-size="7" font-weight="700" fill="#ff4757" font-family="Rajdhani,sans-serif">N</text>
-  </svg>
-</div>
-
-<div id="hud-top">
-  <div class="logo">Track<span>Guard</span></div>
-  <div id="speed-box"><span id="speed-val">0</span><span id="speed-unit">km/h</span></div>
-  <button id="btn-history">📋</button>
-</div>
-
-<div id="status-bar">📡 Recherche GPS...</div>
-
-<div id="alert-banner">
-  <div id="alert-icon">⚠️</div>
-  <div id="alert-body"><div id="alert-title">Danger</div><div id="alert-sub">Vous approchez</div></div>
-  <div id="alert-progress"></div>
-</div>
-
-<div id="calib-banner">
-  <div id="calib-pts">0</div>
-  <div id="calib-txt">Avancez en <strong>marche avant</strong>…</div>
-  <button id="btn-calib-stop">✓ TERMINER</button>
-</div>
-
-<div id="add-hint">👆 Touchez la carte pour placer le danger</div>
-<div id="gps-info">GPS ±<span id="acc-val">--</span>m</div>
-<div id="sens-badge">Sens : <span id="sens-txt">--</span></div>
-
-<div id="hud-bottom">
-  <div id="stats-bar">
-    <div class="stat-box"><div class="stat-val" id="stat-dist">0.00</div><div class="stat-lbl">km</div></div>
-    <div class="stat-box"><div class="stat-val" id="stat-time">00:00</div><div class="stat-lbl">Temps</div></div>
-    <div class="stat-box"><div class="stat-val" id="stat-ndanger">0</div><div class="stat-lbl">Dangers</div></div>
+  <div id="hud-top">
+    <div class="logo">Track<span>Guard</span></div>
+    <div id="speed-box"><span id="speed-val">0</span><span id="speed-unit">km/h</span></div>
+    <button id="btn-history">📋</button>
   </div>
-  <div id="btn-row">
-    <button id="btn-add-danger">⚠️</button>
-    <button id="btn-record">▶ DÉMARRER</button>
-    <button id="btn-center">◎</button>
-  </div>
-</div>
 
-<!-- MODAL DANGER -->
+  <div id="status-bar">📡 Recherche GPS...</div>
+
+  <div id="alert-banner">
+    <div id="alert-icon">⚠️</div>
+    <div id="alert-body"><div id="alert-title">Danger</div><div id="alert-sub">Vous approchez</div></div>
+    <div id="alert-progress"></div>
+  </div>
+
+  <div id="calib-banner">
+    <div id="calib-pts">0</div>
+    <div id="calib-txt">Avancez en <strong>marche avant</strong>…</div>
+    <button id="btn-calib-stop">✓ TERMINER</button>
+  </div>
+
+  <div id="add-hint">👆 Touchez la carte pour placer le danger</div>
+
+  <!-- Rose des vents (tourne pour indiquer le nord) -->
+  <div id="north-rose">
+    <svg id="north-needle" width="40" height="40" viewBox="0 0 40 40">
+      <circle cx="20" cy="20" r="18" fill="rgba(13,20,36,0.85)" stroke="rgba(0,212,255,0.25)" stroke-width="1.5"/>
+      <!-- Moitié nord (rouge) -->
+      <path d="M20,4 L16,20 L20,17 L24,20 Z" fill="#ff4757"/>
+      <!-- Moitié sud (blanc translucide) -->
+      <path d="M20,36 L16,20 L20,23 L24,20 Z" fill="rgba(255,255,255,0.35)"/>
+      <text x="20" y="11" text-anchor="middle" font-size="7" font-weight="700" fill="#ff4757" font-family="Rajdhani,sans-serif">N</text>
+    </svg>
+  </div>
+
+  <button id="btn-rotate-mode" title="Activer/désactiver la rotation carte">🧭</button>
+
+  <div id="gps-info">GPS ±<span id="acc-val">--</span>m</div>
+  <div id="sens-badge">Sens : <span id="sens-txt">--</span></div>
+
+  <div id="hud-bottom">
+    <div id="stats-bar">
+      <div class="stat-box"><div class="stat-val" id="stat-dist">0.00</div><div class="stat-lbl">km</div></div>
+      <div class="stat-box"><div class="stat-val" id="stat-time">00:00</div><div class="stat-lbl">Temps</div></div>
+      <div class="stat-box"><div class="stat-val" id="stat-ndanger">0</div><div class="stat-lbl">Dangers</div></div>
+    </div>
+    <div id="btn-row">
+      <button id="btn-add-danger">⚠️</button>
+      <button id="btn-record">▶ DÉMARRER</button>
+      <button id="btn-center">◎</button>
+    </div>
+  </div>
+
+</div><!-- /ui-layer -->
+
+<!-- MODALS (hors ui-layer pour z-index) -->
 <div class="overlay" id="ov-danger">
   <div class="sheet">
     <div class="sheet-handle"></div>
     <div class="sheet-title" id="danger-title">⚠️ Nouveau danger</div>
     <label>Type</label>
     <select id="d-type">
-      <option value="⚠️">⚠️ Danger général</option>
-      <option value="🚧">🚧 Travaux</option>
-      <option value="🚗">🚗 Accident</option>
-      <option value="👮">👮 Contrôle police</option>
-      <option value="🦌">🦌 Animaux traversant</option>
-      <option value="🌊">🌊 Inondation</option>
-      <option value="🔥">🔥 Feu / Fumée</option>
-      <option value="🕳️">🕳️ Nid de poule</option>
-      <option value="❄️">❄️ Verglas</option>
-      <option value="🚑">🚑 Intervention urgence</option>
+      <option value="⚠️">⚠️ Danger général</option><option value="🚧">🚧 Travaux</option>
+      <option value="🚗">🚗 Accident</option><option value="👮">👮 Police</option>
+      <option value="🦌">🦌 Animaux</option><option value="🌊">🌊 Inondation</option>
+      <option value="🔥">🔥 Feu</option><option value="🕳️">🕳️ Nid de poule</option>
+      <option value="❄️">❄️ Verglas</option><option value="🚑">🚑 Urgence</option>
     </select>
     <label>Titre *</label>
     <input type="text" id="d-title-in" placeholder="Ex: Zone de chargement" maxlength="50">
@@ -246,16 +267,14 @@ textarea{resize:none;height:64px;}
   </div>
 </div>
 
-<!-- MODAL CALIBRATION -->
 <div class="overlay" id="ov-calib">
   <div class="sheet">
     <div class="sheet-handle"></div>
-    <div class="sheet-title">🧭 Calibration du sens de marche</div>
+    <div class="sheet-title">🧭 Calibration sens de marche</div>
     <div class="calib-steps">
-      <div class="calib-step"><div class="step-num">1</div><div class="step-txt">Placez-vous au <strong>point de départ A</strong>, engin à l'arrêt, prêt à avancer.</div></div>
-      <div class="calib-step"><div class="step-num">2</div><div class="step-txt">Appuyez sur <strong>"Lancer la calibration"</strong> ci-dessous.</div></div>
-      <div class="calib-step"><div class="step-num">3</div><div class="step-txt">Avancez en <strong>marche avant</strong> jusqu'au point B (minimum <strong>10 mètres</strong>).</div></div>
-      <div class="calib-step"><div class="step-num">4</div><div class="step-txt">Appuyez sur <strong>"Terminer"</strong> dans le bandeau orange.</div></div>
+      <div class="calib-step"><div class="step-num">1</div><div class="step-txt">Engin à l'arrêt au <strong>point A</strong>, prêt à avancer.</div></div>
+      <div class="calib-step"><div class="step-num">2</div><div class="step-txt">Appuyez <strong>"Lancer"</strong>, puis avancez en <strong>marche avant</strong>.</div></div>
+      <div class="calib-step"><div class="step-num">3</div><div class="step-txt">Parcourez au moins <strong>10 mètres</strong> puis appuyez <strong>"Terminer"</strong>.</div></div>
     </div>
     <div class="calib-result" id="calib-result">
       <div class="cr-val" id="calib-deg">--°</div>
@@ -266,7 +285,6 @@ textarea{resize:none;height:64px;}
   </div>
 </div>
 
-<!-- MODAL PRÉ-DÉMARRAGE -->
 <div class="overlay" id="ov-prestart">
   <div class="sheet">
     <div class="sheet-handle"></div>
@@ -274,13 +292,13 @@ textarea{resize:none;height:64px;}
     <div id="prestart-calib-ok" style="display:none">
       <div style="background:rgba(46,213,115,0.1);border:1px solid var(--accent3);border-radius:10px;padding:12px;margin-bottom:14px;text-align:center;">
         <div style="font-size:22px;margin-bottom:4px;">✅</div>
-        <div style="font-size:14px;font-weight:600;color:var(--accent3);">Sens de marche calibré</div>
-        <div style="font-size:12px;color:var(--text2);margin-top:4px;">Cap avant : <span id="ps-deg" style="color:var(--accent);font-family:'JetBrains Mono',monospace;">--°</span> (<span id="ps-card">--</span>)</div>
+        <div style="font-size:14px;font-weight:600;color:var(--accent3);">Sens calibré</div>
+        <div style="font-size:12px;color:var(--text2);margin-top:4px;">Cap avant : <span id="ps-deg" style="color:var(--accent);font-family:'JetBrains Mono',monospace">--°</span> (<span id="ps-card">--</span>)</div>
       </div>
     </div>
     <div id="prestart-calib-none" style="display:none">
       <div style="background:rgba(255,165,2,0.1);border:1px solid var(--warn);border-radius:10px;padding:12px;margin-bottom:14px;">
-        <div style="font-size:13px;color:var(--warn);font-weight:600;">⚠️ Sens de marche non calibré</div>
+        <div style="font-size:13px;color:var(--warn);font-weight:600;">⚠️ Sens non calibré</div>
         <div style="font-size:12px;color:var(--text2);margin-top:4px;line-height:1.5;">Toute distance sera comptée sans distinction avant/arrière.</div>
       </div>
     </div>
@@ -290,7 +308,6 @@ textarea{resize:none;height:64px;}
   </div>
 </div>
 
-<!-- MODAL HISTORY -->
 <div class="overlay" id="ov-history">
   <div class="sheet">
     <div class="sheet-handle"></div>
@@ -305,7 +322,6 @@ textarea{resize:none;height:64px;}
   </div>
 </div>
 
-<!-- MODAL RECAP -->
 <div class="overlay" id="ov-recap">
   <div class="sheet">
     <div class="sheet-handle"></div>
@@ -313,8 +329,8 @@ textarea{resize:none;height:64px;}
     <div class="recap-grid">
       <div class="recap-box"><div class="recap-val" id="rc-dist">--</div><div class="recap-lbl">Distance</div></div>
       <div class="recap-box"><div class="recap-val" id="rc-time">--</div><div class="recap-lbl">Durée</div></div>
-      <div class="recap-box"><div class="recap-val" id="rc-spd">--</div><div class="recap-lbl">Vitesse moy.</div></div>
-      <div class="recap-box"><div class="recap-val" id="rc-dng">--</div><div class="recap-lbl">Dangers croisés</div></div>
+      <div class="recap-box"><div class="recap-val" id="rc-spd">--</div><div class="recap-lbl">Vit. moy.</div></div>
+      <div class="recap-box"><div class="recap-val" id="rc-dng">--</div><div class="recap-lbl">Dangers</div></div>
     </div>
     <button class="btn btn-primary" id="btn-close-recap">✓ OK</button>
   </div>
@@ -322,12 +338,11 @@ textarea{resize:none;height:64px;}
 
 <script>
 'use strict';
-// ══════════════════════════════════════════════════
-// STATE
-// ══════════════════════════════════════════════════
-let map, userMarker=null, userPos=null, userHeading=0;
-let dangers=[], sessions=[];
-let dangerMarkers={};
+// ═══════════════════════════════════════════════════════
+// ÉTAT GLOBAL
+// ═══════════════════════════════════════════════════════
+let map, userMarker=null, userPos=null;
+let dangers=[], sessions=[], dangerMarkers={};
 let addMode=false, editId=null, pendingPos=null;
 let recording=false, recTimer=null, elapsedSec=0, totalDist=0;
 let lastPos=null, alerted=new Set(), alertTimeout=null;
@@ -336,239 +351,231 @@ let trackPolyline=null, trackPoints=[];
 let forwardDir=null;
 let calibrating=false, calibPoints=[];
 
-// ── Mode rotation carte ──
-let rotateMode=true;      // true = carte tourne (Waze), false = nord fixe
-let mapBearing=0;         // cap actuel de la carte
+// ── Rotation carte ──
+let rotateMode = true;          // true = mode Waze (carte tourne)
+let currentBearing = 0;         // cap actuel affiché (degrés, 0=nord)
+let targetBearing  = 0;         // cap cible (mis à jour par GPS/boussole)
+let rafId = null;               // requestAnimationFrame id
 
-// ── Source cap ──
-// Fusion : boussole (DeviceOrientation) + GPS heading
-// Le résultat est un angle lissé par filtre complémentaire
-let compassHeading=null;  // depuis boussole (degrés, 0=Nord)
-let gpsHeading=null;      // depuis GPS
-let lastGPSSpeed=0;       // m/s
+// ── Fusion cap ──
+let compassRaw = null;          // boussole brute
+let gpsRaw     = null;          // cap GPS brut
+let curSpeed   = 0;             // vitesse GPS m/s
+let fuseHeading = 0;            // résultat fusionné lissé
 
-// Filtre complémentaire : α=poids GPS (plus fort quand on bouge vite)
-const COMPASS_SMOOTHING = 0.15;  // inertie boussole (0=instantané, 1=jamais)
-let smoothedHeading=0;
-
-// ══════════════════════════════════════════════════
+// ═══════════════════════════════════════════════════════
 // FILTRE KALMAN POSITION
-// ══════════════════════════════════════════════════
-const kalman={
-  lat:null,lng:null,accuracy:null,timestamp:null,
-  reset(){this.lat=null;this.lng=null;this.accuracy=null;this.timestamp=null;},
+// ═══════════════════════════════════════════════════════
+const K = {
+  lat:null,lng:null,acc:null,ts:null,
+  reset(){this.lat=null;this.lng=null;this.acc=null;this.ts=null;},
   update(lat,lng,acc,ts){
-    if(this.lat===null){this.lat=lat;this.lng=lng;this.accuracy=acc;this.timestamp=ts;return{lat,lng,acc};}
-    const dt=Math.max((ts-this.timestamp)/1000,0.1);
-    const Q=8*dt, R=Math.max(acc,2);
-    const K=this.accuracy/(this.accuracy+R+Q);
-    this.lat+=K*(lat-this.lat);
-    this.lng+=K*(lng-this.lng);
-    this.accuracy=(1-K)*(this.accuracy+Q);
-    this.timestamp=ts;
-    return{lat:this.lat,lng:this.lng,acc:this.accuracy};
+    if(this.lat===null){this.lat=lat;this.lng=lng;this.acc=acc;this.ts=ts;return{lat,lng,acc};}
+    const dt=Math.max((ts-this.ts)/1000,0.1), Q=8*dt, R=Math.max(acc,2);
+    const k=this.acc/(this.acc+R+Q);
+    this.lat+=k*(lat-this.lat); this.lng+=k*(lng-this.lng);
+    this.acc=(1-k)*(this.acc+Q); this.ts=ts;
+    return{lat:this.lat,lng:this.lng,acc:this.acc};
   }
 };
 
-// Lissage cap circulaire (buffer 4 pour réactivité)
-const hBuf=[];
-function smoothH(h){
-  hBuf.push(h);if(hBuf.length>4)hBuf.shift();
-  let s=0,c=0;
-  hBuf.forEach(a=>{s+=Math.sin(a*Math.PI/180);c+=Math.cos(a*Math.PI/180);});
-  return(Math.atan2(s/hBuf.length,c/hBuf.length)*180/Math.PI+360)%360;
+// ═══════════════════════════════════════════════════════
+// FUSION CAP : boussole + GPS
+// Principes :
+//  - À l'arrêt (speed<0.5) : boussole pure
+//  - En mouvement lent (0.5–2 m/s) : mix progressif
+//  - En mouvement rapide (>2 m/s) : GPS pur (plus précis sur trajectoire)
+//  - Lissage final low-pass sur le résultat
+// ═══════════════════════════════════════════════════════
+const ALPHA_SLOW = 0.12;   // lissage fort (boussole, arrêt)
+const ALPHA_FAST = 0.25;   // lissage léger (GPS rapide)
+
+function updateFuseHeading(){
+  let raw;
+  const gpsWeight = Math.min(Math.max((curSpeed-0.5)/1.5, 0), 1); // 0 à 0.5m/s → 0, 2m/s → 1
+
+  if(compassRaw===null && gpsRaw===null) return;
+  if(compassRaw===null){ raw=gpsRaw; }
+  else if(gpsRaw===null || gpsWeight<0.05){ raw=compassRaw; }
+  else {
+    // Interpolation circulaire pondérée
+    let d=gpsRaw-compassRaw;
+    if(d>180)d-=360; if(d<-180)d+=360;
+    raw=(compassRaw+gpsWeight*d+360)%360;
+  }
+
+  // Low-pass : alpha plus grand = réagit plus vite
+  const alpha = gpsWeight>0.5 ? ALPHA_FAST : ALPHA_SLOW;
+  let diff = raw - fuseHeading;
+  if(diff>180)diff-=360; if(diff<-180)diff+=360;
+  fuseHeading = (fuseHeading + alpha*diff + 360)%360;
 }
 
-// ══════════════════════════════════════════════════
-// FUSION CAP : boussole + GPS (filtre complémentaire)
-// ══════════════════════════════════════════════════
-function fuseHeading(){
-  // Poids GPS : 0 à l'arrêt, 1 à partir de 2 m/s (7 km/h)
-  const gpsWeight = Math.min(lastGPSSpeed/2, 1);
+// ═══════════════════════════════════════════════════════
+// ANIMATION ROTATION CARTE (RAF — 60fps, zéro saut)
+// Principe Organic Maps : on fait tourner map._mapPane
+// (le conteneur interne qui contient tuiles+marqueurs)
+// autour du centre de l'écran, sans jamais appeler setView
+// pendant la rotation pure.
+// ═══════════════════════════════════════════════════════
+const ROT_INTERP = 0.12;  // vitesse interpolation (0.12 = fluide, 0.3 = réactif)
+const ROT_THRESHOLD = 0.3; // ne pas animer si diff < 0.3°
 
-  if(compassHeading===null && gpsHeading===null) return smoothedHeading;
-  if(compassHeading===null) return gpsHeading;
-  if(gpsHeading===null || gpsWeight<0.05) return compassHeading;
-
-  // Interpolation circulaire pondérée
-  let diff = gpsHeading - compassHeading;
-  if(diff>180) diff-=360;
-  if(diff<-180) diff+=360;
-  const fused = (compassHeading + gpsWeight*diff + 360)%360;
-
-  // Lissage final
-  let d2=fused-smoothedHeading;
-  if(d2>180)d2-=360;if(d2<-180)d2+=360;
-  smoothedHeading=(smoothedHeading+d2*(1-COMPASS_SMOOTHING)+360)%360;
-  return smoothedHeading;
+function startRotationLoop(){
+  if(rafId) return;
+  rafLoop();
 }
 
-// ══════════════════════════════════════════════════
-// BOUSSOLE (DeviceOrientation)
-// ══════════════════════════════════════════════════
+function rafLoop(){
+  rafId = requestAnimationFrame(rafLoop);
+
+  if(!rotateMode){ applyMapRotation(0); return; }
+
+  // Interpolation angulaire vers la cible
+  let diff = targetBearing - currentBearing;
+  if(diff>180)diff-=360; if(diff<-180)diff+=360;
+
+  if(Math.abs(diff) < ROT_THRESHOLD){ return; } // rien à faire
+
+  currentBearing = (currentBearing + diff*ROT_INTERP + 360)%360;
+  applyMapRotation(currentBearing);
+}
+
+function applyMapRotation(deg){
+  if(!map) return;
+  // On fait tourner le pane interne de Leaflet
+  // map._mapPane contient tout (tuiles, markers, overlays)
+  // On le fait tourner autour du centre de l'écran
+  const pane = map._mapPane;
+  if(!pane) return;
+  pane.style.transformOrigin = '50% 50%';
+  pane.style.transform = `rotate(${-deg}deg)`;
+
+  // La flèche doit pointer vers le haut → contre-rotation
+  if(userMarker){
+    const el = userMarker.getElement();
+    if(el) el.style.transform = `rotate(${deg}deg)`;
+  }
+
+  // Mettre à jour la rose des vents (affiche le nord réel)
+  document.getElementById('north-needle').style.transform = `rotate(${deg}deg)`;
+}
+
+// ═══════════════════════════════════════════════════════
+// BOUSSOLE
+// ═══════════════════════════════════════════════════════
 let compassStarted=false;
-
 function startCompass(){
-  if(compassStarted)return;
-
-  // iOS 13+ nécessite une permission explicite
+  if(compassStarted)return; compassStarted=true;
   if(typeof DeviceOrientationEvent!=='undefined' && typeof DeviceOrientationEvent.requestPermission==='function'){
+    // iOS 13+
     DeviceOrientationEvent.requestPermission()
-      .then(r=>{ if(r==='granted') attachCompass(); else setStatus('🧭 Boussole refusée — cap GPS uniquement',true); })
-      .catch(()=>setStatus('🧭 Boussole non disponible',true));
-  } else {
-    attachCompass();
-  }
-  compassStarted=true;
+      .then(r=>{ if(r==='granted') bindCompass(); else setStatus('🧭 Boussole refusée',true); })
+      .catch(()=>setStatus('🧭 Boussole indisponible',true));
+  } else { bindCompass(); }
+}
+function bindCompass(){
+  const handler=e=>{
+    let h=null;
+    if(e.webkitCompassHeading!=null) h=e.webkitCompassHeading;       // Safari/iOS
+    else if(e.absolute&&e.alpha!=null) h=(360-e.alpha+360)%360;       // Android absolu
+    else if(e.alpha!=null) h=(360-e.alpha+360)%360;                   // Android relatif
+    if(h===null||isNaN(h))return;
+    compassRaw=h;
+    updateFuseHeading();
+    if(curSpeed<0.5){
+      targetBearing=fuseHeading;
+    }
+  };
+  window.addEventListener('deviceorientationabsolute',handler,true);
+  window.addEventListener('deviceorientation',handler,true);
 }
 
-function attachCompass(){
-  window.addEventListener('deviceorientationabsolute', onOrientation, true);
-  window.addEventListener('deviceorientation', onOrientation, true);
-}
-
-function onOrientation(e){
-  let heading=null;
-  // deviceorientationabsolute donne e.absolute=true et e.alpha = cap absolu
-  if(e.absolute && e.alpha!=null){
-    heading=(360-e.alpha)%360;
-  } else if(e.webkitCompassHeading!=null){
-    // Safari iOS
-    heading=e.webkitCompassHeading;
-  } else if(e.alpha!=null && !e.absolute){
-    // Android Chrome non-absolu : approximation (moins précis)
-    heading=(360-e.alpha)%360;
-  }
-  if(heading===null||isNaN(heading))return;
-  compassHeading=heading;
-
-  // Si à l'arrêt, mettre à jour le cap immédiatement
-  if(lastGPSSpeed<0.5){
-    userHeading=fuseHeading();
-    if(userMarker) userMarker.setIcon(makeArrowIcon(rotateMode ? 0 : userHeading));
-    if(rotateMode && map) applyMapBearing(userHeading);
-  }
-}
-
-// ══════════════════════════════════════════════════
+// ═══════════════════════════════════════════════════════
 // STORAGE
-// ══════════════════════════════════════════════════
+// ═══════════════════════════════════════════════════════
 function save(){
   try{
-    localStorage.setItem('tg5_dangers',JSON.stringify(dangers));
-    localStorage.setItem('tg5_sessions',JSON.stringify(sessions));
-    if(forwardDir!==null)localStorage.setItem('tg5_fwd',String(forwardDir));
+    localStorage.setItem('tg6_d',JSON.stringify(dangers));
+    localStorage.setItem('tg6_s',JSON.stringify(sessions));
+    if(forwardDir!==null) localStorage.setItem('tg6_f',String(forwardDir));
   }catch(e){}
 }
 function load(){
-  try{dangers=JSON.parse(localStorage.getItem('tg5_dangers')||'[]');}catch(e){dangers=[];}
-  try{sessions=JSON.parse(localStorage.getItem('tg5_sessions')||'[]');}catch(e){sessions=[];}
-  const fwd=localStorage.getItem('tg5_fwd');
-  if(fwd!==null)forwardDir=parseFloat(fwd);
+  try{dangers=JSON.parse(localStorage.getItem('tg6_d')||'[]');}catch(e){dangers=[];}
+  try{sessions=JSON.parse(localStorage.getItem('tg6_s')||'[]');}catch(e){sessions=[];}
+  const f=localStorage.getItem('tg6_f');
+  if(f!==null)forwardDir=parseFloat(f);
 }
 
-// ══════════════════════════════════════════════════
-// MAP + ROTATION
-// ══════════════════════════════════════════════════
+// ═══════════════════════════════════════════════════════
+// CARTE
+// ═══════════════════════════════════════════════════════
 function initMap(){
   if(typeof L==='undefined'){setStatus('❌ Carte non chargée');return;}
-
-  // Utilise leaflet-rotate si disponible, sinon fallback CSS
-  const usePlugin = typeof L.map.prototype.setBearing !== 'undefined' ||
-                    (L.Map && L.Map.include && false); // sera vérifié après init
-
   map=L.map('map',{
     zoomControl:false,
     attributionControl:true,
-    tap:true,
-    tapTolerance:15,
-    center:[46.2276,2.2137],
-    zoom:6,
-    rotate: true,       // option leaflet-rotate
-    rotateControl: false
+    tap:true,tapTolerance:15,
+    center:[46.2276,2.2137],zoom:6,
+    // Désactiver les animations de Leaflet qui interfèrent avec notre rotation
+    zoomAnimation:false, markerZoomAnimation:false
   });
-
-  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{
-    maxZoom:19, attribution:'© OpenStreetMap'
-  }).addTo(map);
-
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19,attribution:'© OSM'}).addTo(map);
   map.on('click',e=>{if(!addMode)return;pendingPos=[e.latlng.lat,e.latlng.lng];editId=null;openDangerModal(false);});
 
-  // Désactiver la rotation native si l'utilisateur tourne manuellement (on gère nous-mêmes)
-  map.on('rotate',()=>{
-    // Mettre à jour l'indicateur nord
-    updateNorthIndicator();
-  });
-
+  startRotationLoop();
   startGPS();
   startCompass();
 }
 
-// Applique une rotation à la carte
-function applyMapBearing(deg){
-  if(!map)return;
-  mapBearing=deg;
-  // leaflet-rotate API
-  if(typeof map.setBearing==='function'){
-    map.setBearing(deg);
-  } else {
-    // Fallback CSS sur le conteneur des tuiles
-    const pane=map.getPane('tilePane');
-    const mPane=map.getPane('mapPane');
-    if(mPane) mPane.style.transform=`rotate(${-deg}deg)`;
-  }
-  updateNorthIndicator();
-}
-
-function updateNorthIndicator(){
-  const ind=document.getElementById('north-indicator');
-  const bearing=typeof map.getBearing==='function' ? map.getBearing() : mapBearing;
-  // La rose pivote pour montrer où est le nord
-  ind.querySelector('svg').style.transform=`rotate(${bearing}deg)`;
-}
-
-// ══════════════════════════════════════════════════
+// ═══════════════════════════════════════════════════════
 // MARQUEUR FLÈCHE
-// En mode rotation : flèche toujours pointée vers le haut (cap=0)
-//   car c'est la carte qui tourne → l'utilisateur est toujours "devant"
-// En mode nord fixe : flèche tourne selon le cap
-// ══════════════════════════════════════════════════
-function makeArrowIcon(displayDeg){
-  const svg=`<svg xmlns="http://www.w3.org/2000/svg" width="44" height="44" viewBox="0 0 44 44">
-    <defs><filter id="gw" x="-60%" y="-60%" width="220%" height="220%">
-      <feGaussianBlur stdDeviation="2.5" result="b"/>
-      <feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
-    </filter></defs>
-    <circle cx="22" cy="26" r="13" fill="rgba(0,212,255,0.15)"/>
-    <circle cx="22" cy="26" r="10" fill="#00d4ff" filter="url(#gw)"/>
-    <circle cx="22" cy="26" r="10" fill="none" stroke="white" stroke-width="2.5"/>
-    <polygon points="22,3 15,20 29,20" fill="#00d4ff" filter="url(#gw)"/>
-    <polygon points="22,3 15,20 29,20" fill="none" stroke="white" stroke-width="2" stroke-linejoin="round"/>
-    <circle cx="22" cy="26" r="3.5" fill="white"/>
+// La flèche est toujours en position "0" dans Leaflet,
+// mais on lui applique une contre-rotation via applyMapRotation
+// pour qu'elle pointe toujours vers l'avant.
+// ═══════════════════════════════════════════════════════
+function makeArrowIcon(){
+  const svg=`<svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 48 48">
+    <defs>
+      <filter id="gw"><feGaussianBlur stdDeviation="3" result="b"/>
+        <feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+      <radialGradient id="cg" cx="50%" cy="60%"><stop offset="0%" stop-color="#40e8ff"/>
+        <stop offset="100%" stop-color="#00a8cc"/></radialGradient>
+    </defs>
+    <!-- Halo -->
+    <circle cx="24" cy="28" r="15" fill="rgba(0,212,255,0.18)"/>
+    <!-- Corps -->
+    <circle cx="24" cy="28" r="11" fill="url(#cg)" filter="url(#gw)"/>
+    <circle cx="24" cy="28" r="11" fill="none" stroke="white" stroke-width="2.5"/>
+    <!-- Pointe avant -->
+    <polygon points="24,4 17,22 31,22" fill="#00d4ff" filter="url(#gw)"/>
+    <polygon points="24,4 17,22 31,22" fill="none" stroke="white" stroke-width="2.2" stroke-linejoin="round"/>
+    <!-- Centre -->
+    <circle cx="24" cy="28" r="4" fill="white"/>
   </svg>`;
   return L.divIcon({
-    html:`<div style="width:44px;height:44px;transform:rotate(${displayDeg}deg);transform-origin:50% 59%;">${svg}</div>`,
-    iconSize:[44,44],iconAnchor:[22,26],className:''
+    html:`<div style="width:48px;height:48px;">${svg}</div>`,
+    iconSize:[48,48],iconAnchor:[24,28],className:''
   });
 }
 
-function updateUserMarker(pos){
-  // En mode rotation : flèche pointe toujours vers le haut (0°)
-  // En mode nord fixe : flèche pointe vers le cap
-  const iconDeg = rotateMode ? 0 : userHeading;
+function setUserMarker(pos){
   if(!userMarker){
-    userMarker=L.marker(pos,{icon:makeArrowIcon(iconDeg),zIndexOffset:1000}).addTo(map);
+    userMarker=L.marker(pos,{icon:makeArrowIcon(),zIndexOffset:1000}).addTo(map);
+    // Désactiver les transitions CSS Leaflet sur ce marqueur
+    const el=userMarker.getElement();
+    if(el) el.style.transition='none';
   } else {
     userMarker.setLatLng(pos);
-    userMarker.setIcon(makeArrowIcon(iconDeg));
   }
 }
 
-// ══════════════════════════════════════════════════
+// ═══════════════════════════════════════════════════════
 // GPS
-// ══════════════════════════════════════════════════
+// ═══════════════════════════════════════════════════════
 let firstFix=true, prevPos=null;
-const MIN_ACCURACY=40, MIN_SPEED_MS=0.2, MIN_DIST_M=0.5;
+const MIN_ACC=40, MIN_SPD=0.2, MIN_D=0.5;
 
 function startGPS(){
   if(!navigator.geolocation){setStatus('❌ GPS non disponible');return;}
@@ -576,58 +583,62 @@ function startGPS(){
 }
 
 function onGPS(raw){
-  const acc=raw.coords.accuracy,ts=raw.timestamp;
-  if(acc>MIN_ACCURACY){document.getElementById('acc-val').textContent='⚠️'+Math.round(acc);return;}
+  const acc=raw.coords.accuracy, ts=raw.timestamp;
+  if(acc>MIN_ACC){document.getElementById('acc-val').textContent='⚠️'+Math.round(acc);return;}
 
-  const k=kalman.update(raw.coords.latitude,raw.coords.longitude,acc,ts);
-  document.getElementById('acc-val').textContent=Math.round(k.acc);
+  const p=K.update(raw.coords.latitude,raw.coords.longitude,acc,ts);
+  document.getElementById('acc-val').textContent=Math.round(p.acc);
 
   const spd=raw.coords.speed||0;
-  lastGPSSpeed=spd;
-  document.getElementById('speed-val').textContent=spd>MIN_SPEED_MS?Math.round(spd*3.6):0;
+  curSpeed=spd;
+  document.getElementById('speed-val').textContent=spd>MIN_SPD?Math.round(spd*3.6):0;
 
-  const newPos=[k.lat,k.lng];
+  const newPos=[p.lat,p.lng];
   const moved=prevPos?distM(prevPos,newPos):999;
-  const reallyMoved=moved>=MIN_DIST_M&&spd>=MIN_SPEED_MS;
+  const realMoved=moved>=MIN_D&&spd>=MIN_SPD;
 
-  if(reallyMoved){
-    // Cap GPS
-    if(raw.coords.heading!=null&&!isNaN(raw.coords.heading)&&spd>MIN_SPEED_MS){
-      gpsHeading=raw.coords.heading;
+  if(realMoved&&spd>MIN_SPD){
+    // Cap GPS : priorité au heading natif si disponible et fiable
+    if(raw.coords.heading!=null&&!isNaN(raw.coords.heading)){
+      gpsRaw=raw.coords.heading;
     } else if(prevPos){
-      gpsHeading=bearing(prevPos,newPos);
+      gpsRaw=bearing(prevPos,newPos);
     }
-    userHeading=fuseHeading();
+    updateFuseHeading();
+    targetBearing=fuseHeading;
   }
 
-  if(reallyMoved||!userPos){
+  // Pan vers la nouvelle position SANS toucher à la rotation
+  if(realMoved||!userPos){
     userPos=newPos;
-    updateUserMarker(userPos);
-    // Rotation carte
-    if(rotateMode&&map){
-      applyMapBearing(userHeading);
-      if(firstFix||true) map.setView(userPos,map.getZoom(),{animate:true,duration:0.3});
+    setUserMarker(userPos);
+    if(map){
+      // setView sans animation pour éviter les sauts
+      map.setView(userPos, map.getZoom(), {animate:false});
     }
   }
 
-  if(firstFix){firstFix=false;map.setView(userPos,17);setStatus('✅ GPS actif',true);}
+  if(firstFix){
+    firstFix=false;
+    map.setView(userPos,17,{animate:false});
+    setStatus('✅ GPS actif',true);
+  }
 
   // Calibration
-  if(calibrating&&reallyMoved){
+  if(calibrating&&realMoved){
     calibPoints.push([...userPos]);
     document.getElementById('calib-pts').textContent=calibPoints.length;
     const cd=calibPoints.length>1?distM(calibPoints[0],calibPoints[calibPoints.length-1]):0;
     document.getElementById('calib-txt').innerHTML=cd>=10
-      ?`<strong>${Math.round(cd)}m</strong> ✅ — Appuyez sur Terminer`
-      :`Avancez en <strong>marche avant</strong>… ${Math.round(cd)}m / 10m`;
+      ?`<strong>${Math.round(cd)}m</strong> ✅ — Appuyez Terminer`
+      :`Avancez en <strong>marche avant</strong>… ${Math.round(cd)}m/10m`;
   }
 
   // Enregistrement
-  if(recording&&lastPos&&reallyMoved){
+  if(recording&&lastPos&&realMoved){
     const d=distM(lastPos,userPos);
     if(d>0&&d<200){
-      const mb=bearing(lastPos,userPos);
-      if(isForward(mb)){
+      if(isForward(bearing(lastPos,userPos))){
         totalDist+=d/1000;
         document.getElementById('stat-dist').textContent=totalDist.toFixed(2);
         trackPoints.push([...userPos]);
@@ -636,57 +647,47 @@ function onGPS(raw){
       } else setSensBadge(false);
     }
   }
-  if(recording)lastPos=[...userPos];
-  if(reallyMoved)prevPos=[...userPos];
+  if(recording) lastPos=[...userPos];
+  if(realMoved) prevPos=[...userPos];
   checkAlerts();
 }
 
 function onGPSErr(e){
-  const m={1:'🚫 GPS refusé',2:'📡 Signal GPS absent',3:'⏱️ Timeout GPS'};
+  const m={1:'🚫 GPS refusé',2:'📡 Signal absent',3:'⏱️ Timeout GPS'};
   setStatus(m[e.code]||'❌ Erreur GPS');
 }
 
-// ══════════════════════════════════════════════════
+// ═══════════════════════════════════════════════════════
 // BOUTON MODE ROTATION
-// ══════════════════════════════════════════════════
+// ═══════════════════════════════════════════════════════
 tap('btn-rotate-mode',()=>{
   rotateMode=!rotateMode;
   document.getElementById('btn-rotate-mode').classList.toggle('active',rotateMode);
-  document.getElementById('north-indicator').classList.toggle('show',rotateMode);
-
+  document.getElementById('north-rose').classList.toggle('show',rotateMode);
   if(!rotateMode){
-    // Revenir nord en haut
-    if(typeof map.setBearing==='function') map.setBearing(0);
-    else {const p=map.getPane('mapPane');if(p)p.style.transform='';}
-    mapBearing=0;
-    hBuf.length=0;
+    targetBearing=0; currentBearing=0;
+    applyMapRotation(0);
+    setStatus('🗺️ Nord fixe',true);
   } else {
-    // Réappliquer le cap actuel
-    applyMapBearing(userHeading);
+    setStatus('🧭 Mode suivi (carte tourne)',true);
   }
-  // Mettre à jour l'icône flèche
-  if(userPos) updateUserMarker(userPos);
-  setStatus(rotateMode?'🧭 Mode suivi activé (carte tourne)':'🗺️ Mode nord fixe',true);
 });
-
-// Clic sur l'indicateur nord → reset à nord
-tap('north-indicator',()=>{
-  if(!rotateMode)return;
-  if(typeof map.setBearing==='function') map.setBearing(0);
-  mapBearing=0;
-  // Désactiver le mode rotation temporairement
+tap('north-rose',()=>{
+  // Tap sur la rose = verrouiller nord
   rotateMode=false;
   document.getElementById('btn-rotate-mode').classList.remove('active');
-  document.getElementById('north-indicator').classList.remove('show');
-  setStatus('🗺️ Mode nord fixe',true);
+  document.getElementById('north-rose').classList.remove('show');
+  targetBearing=0;currentBearing=0;
+  applyMapRotation(0);
+  setStatus('🗺️ Nord fixe',true);
 });
 
-// ══════════════════════════════════════════════════
+// ═══════════════════════════════════════════════════════
 // GÉOMÉTRIE
-// ══════════════════════════════════════════════════
+// ═══════════════════════════════════════════════════════
 function haversine(a,b){
-  const R=6371,dLat=(b[0]-a[0])*Math.PI/180,dLon=(b[1]-a[1])*Math.PI/180;
-  const s=Math.sin(dLat/2)**2+Math.cos(a[0]*Math.PI/180)*Math.cos(b[0]*Math.PI/180)*Math.sin(dLon/2)**2;
+  const R=6371,dL=(b[0]-a[0])*Math.PI/180,dLn=(b[1]-a[1])*Math.PI/180;
+  const s=Math.sin(dL/2)**2+Math.cos(a[0]*Math.PI/180)*Math.cos(b[0]*Math.PI/180)*Math.sin(dLn/2)**2;
   return R*2*Math.atan2(Math.sqrt(s),Math.sqrt(1-s));
 }
 function distM(a,b){return haversine(a,b)*1000;}
@@ -696,33 +697,31 @@ function bearing(a,b){
   return(Math.atan2(y,x)*180/Math.PI+360)%360;
 }
 function angleDiff(a,b){let d=Math.abs(a-b)%360;return d>180?360-d:d;}
-function isForward(mb){if(forwardDir===null)return true;return angleDiff(mb,forwardDir)<=90;}
-function degToCardinal(d){const dirs=['N','NNE','NE','ENE','E','ESE','SE','SSE','S','SSO','SO','OSO','O','ONO','NO','NNO'];return dirs[Math.round(d/22.5)%16];}
+function isForward(b){if(forwardDir===null)return true;return angleDiff(b,forwardDir)<=90;}
+function degToCard(d){return['N','NNE','NE','ENE','E','ESE','SE','SSE','S','SSO','SO','OSO','O','ONO','NO','NNO'][Math.round(d/22.5)%16];}
 
-// ══════════════════════════════════════════════════
+// ═══════════════════════════════════════════════════════
 // CALIBRATION A→B
-// ══════════════════════════════════════════════════
+// ═══════════════════════════════════════════════════════
 function openCalibModal(){
   if(forwardDir!==null){
     document.getElementById('calib-result').classList.add('show');
     document.getElementById('calib-deg').textContent=Math.round(forwardDir)+'°';
-    document.getElementById('calib-cardinal').textContent=degToCardinal(forwardDir);
+    document.getElementById('calib-cardinal').textContent=degToCard(forwardDir);
   } else document.getElementById('calib-result').classList.remove('show');
   document.getElementById('ov-calib').classList.add('show');
 }
 tap('btn-start-calib',()=>{
-  if(!userPos){setStatus('📡 GPS non disponible');return;}
+  if(!userPos){setStatus('📡 GPS non dispo');return;}
   document.getElementById('ov-calib').classList.remove('show');
   calibrating=true;calibPoints=[[...userPos]];
   document.getElementById('calib-pts').textContent='1';
-  document.getElementById('calib-txt').innerHTML='Avancez en <strong>marche avant</strong>… 0m / 10m';
+  document.getElementById('calib-txt').innerHTML='Avancez en <strong>marche avant</strong>… 0m/10m';
   document.getElementById('calib-banner').classList.add('show');
-  setStatus('🧭 Calibration en cours…',false);
 });
 tap('btn-calib-stop',()=>{
-  if(!calibrating)return;
   const cd=calibPoints.length>1?distM(calibPoints[0],calibPoints[calibPoints.length-1]):0;
-  if(cd<8){alert(`Distance insuffisante : ${Math.round(cd)}m. Minimum 10m requis.`);return;}
+  if(cd<8){alert(`Distance insuffisante : ${Math.round(cd)}m (min 10m)`);return;}
   finishCalib();
 });
 function finishCalib(){
@@ -733,12 +732,11 @@ function finishCalib(){
     const b=bearing(calibPoints[i-1],calibPoints[i]),d=distM(calibPoints[i-1],calibPoints[i]);
     if(d>0.3){s+=Math.sin(b*Math.PI/180)*d;c+=Math.cos(b*Math.PI/180)*d;cnt++;}
   }
-  if(cnt===0){setStatus('❌ Pas assez de mouvement');return;}
+  if(!cnt){setStatus('❌ Pas assez de mouvement');return;}
   forwardDir=(Math.atan2(s,c)*180/Math.PI+360)%360;
-  save();
-  const card=degToCardinal(forwardDir);
+  save();beep();
+  const card=degToCard(forwardDir);
   setStatus(`✅ Calibré : ${Math.round(forwardDir)}° (${card})`,true);
-  beep();
   document.getElementById('calib-result').classList.add('show');
   document.getElementById('calib-deg').textContent=Math.round(forwardDir)+'°';
   document.getElementById('calib-cardinal').textContent=card;
@@ -746,16 +744,16 @@ function finishCalib(){
 }
 tap('btn-close-calib',()=>document.getElementById('ov-calib').classList.remove('show'));
 
-// ══════════════════════════════════════════════════
+// ═══════════════════════════════════════════════════════
 // PRÉ-DÉMARRAGE
-// ══════════════════════════════════════════════════
+// ═══════════════════════════════════════════════════════
 function openPrestart(){
-  if(!userPos){setStatus('📡 GPS non disponible');return;}
+  if(!userPos){setStatus('📡 GPS non dispo');return;}
   if(forwardDir!==null){
     document.getElementById('prestart-calib-ok').style.display='block';
     document.getElementById('prestart-calib-none').style.display='none';
     document.getElementById('ps-deg').textContent=Math.round(forwardDir)+'°';
-    document.getElementById('ps-card').textContent=degToCardinal(forwardDir);
+    document.getElementById('ps-card').textContent=degToCard(forwardDir);
   } else {
     document.getElementById('prestart-calib-ok').style.display='none';
     document.getElementById('prestart-calib-none').style.display='block';
@@ -766,19 +764,15 @@ tap('btn-ps-go',()=>{document.getElementById('ov-prestart').classList.remove('sh
 tap('btn-ps-calib',()=>{document.getElementById('ov-prestart').classList.remove('show');openCalibModal();});
 tap('btn-ps-cancel',()=>document.getElementById('ov-prestart').classList.remove('show'));
 
-// ══════════════════════════════════════════════════
-// SENS BADGE
-// ══════════════════════════════════════════════════
+// ═══════════════════════════════════════════════════════
+// SENS BADGE / TRACÉ / ALERTES / AUDIO
+// ═══════════════════════════════════════════════════════
 function setSensBadge(fwd){
-  const el=document.getElementById('sens-badge'),txt=document.getElementById('sens-txt');
+  const el=document.getElementById('sens-badge'),t=document.getElementById('sens-txt');
   el.classList.add('show');
-  if(fwd){el.className='show fwd';txt.textContent='▲ EN AVANT';}
-  else{el.className='show bwd';txt.textContent='▼ ARRIÈRE (ignoré)';}
+  if(fwd){el.className='show fwd';t.textContent='▲ EN AVANT';}
+  else{el.className='show bwd';t.textContent='▼ ARRIÈRE (ignoré)';}
 }
-
-// ══════════════════════════════════════════════════
-// TRACÉ TRAJECTOIRE
-// ══════════════════════════════════════════════════
 function updateTrack(){
   if(!map||trackPoints.length<2)return;
   if(trackPolyline)trackPolyline.setLatLngs(trackPoints);
@@ -788,10 +782,6 @@ function updateTrack(){
   }
 }
 function clearTrack(){if(trackPolyline){map.removeLayer(trackPolyline);trackPolyline=null;}trackPoints=[];}
-
-// ══════════════════════════════════════════════════
-// ALERTES
-// ══════════════════════════════════════════════════
 const ALERT_MS=10000;
 function checkAlerts(){
   if(!userPos)return;
@@ -818,32 +808,25 @@ function triggerAlert(d,dist){
 function beep(){
   try{
     if(!audioCtx)audioCtx=new(window.AudioContext||window.webkitAudioContext)();
-    const ctx=audioCtx;
     [[880,0,0.13],[1200,0.2,0.13],[880,0.4,0.22]].forEach(([f,t,d])=>{
-      const o=ctx.createOscillator(),g=ctx.createGain();
-      o.connect(g);g.connect(ctx.destination);
-      o.type='sine';o.frequency.value=f;
-      g.gain.setValueAtTime(0.4,ctx.currentTime+t);
-      g.gain.exponentialRampToValueAtTime(0.001,ctx.currentTime+t+d);
-      o.start(ctx.currentTime+t);o.stop(ctx.currentTime+t+d+0.05);
+      const o=audioCtx.createOscillator(),g=audioCtx.createGain();
+      o.connect(g);g.connect(audioCtx.destination);o.type='sine';o.frequency.value=f;
+      g.gain.setValueAtTime(0.4,audioCtx.currentTime+t);
+      g.gain.exponentialRampToValueAtTime(0.001,audioCtx.currentTime+t+d);
+      o.start(audioCtx.currentTime+t);o.stop(audioCtx.currentTime+t+d+0.05);
     });
   }catch(e){}
 }
 
-// ══════════════════════════════════════════════════
+// ═══════════════════════════════════════════════════════
 // BOUTONS
-// ══════════════════════════════════════════════════
+// ═══════════════════════════════════════════════════════
 function tap(id,fn){const el=document.getElementById(id);if(el)el.addEventListener('click',e=>{e.preventDefault();fn(e);});}
-function unlockAudio(){if(!audioCtx){try{audioCtx=new(window.AudioContext||window.webkitAudioContext)();}catch(e){}}}
+function ua(){if(!audioCtx)try{audioCtx=new(window.AudioContext||window.webkitAudioContext)();}catch(e){}}
 
-tap('btn-add-danger',()=>{
-  unlockAudio();addMode=!addMode;
-  document.getElementById('btn-add-danger').classList.toggle('active',addMode);
-  document.getElementById('add-hint').classList.toggle('show',addMode);
-  if(map)map.getContainer().style.cursor=addMode?'crosshair':'';
-});
-tap('btn-record',()=>{unlockAudio();if(recording)stopRecord();else openPrestart();});
-tap('btn-center',()=>{if(userPos&&map)map.setView(userPos,17);else setStatus('📡 GPS pas encore disponible...');});
+tap('btn-add-danger',()=>{ua();addMode=!addMode;document.getElementById('btn-add-danger').classList.toggle('active',addMode);document.getElementById('add-hint').classList.toggle('show',addMode);if(map)map.getContainer().style.cursor=addMode?'crosshair':'';});
+tap('btn-record',()=>{ua();if(recording)stopRecord();else openPrestart();});
+tap('btn-center',()=>{if(userPos&&map)map.setView(userPos,17,{animate:false});else setStatus('📡 GPS pas encore dispo...');});
 tap('btn-history',openHistory);
 tap('btn-save-d',saveDanger);
 tap('btn-cancel-d',closeDangerModal);
@@ -857,13 +840,13 @@ document.querySelectorAll('.tab').forEach(t=>t.addEventListener('click',()=>{
   document.getElementById('tab-dangers-list').style.display=tab==='dangers'?'block':'none';
 }));
 
-// Activer le mode rotation au démarrage
+// Activer mode rotation par défaut
 document.getElementById('btn-rotate-mode').classList.add('active');
-document.getElementById('north-indicator').classList.add('show');
+document.getElementById('north-rose').classList.add('show');
 
-// ══════════════════════════════════════════════════
+// ═══════════════════════════════════════════════════════
 // ENREGISTREMENT
-// ══════════════════════════════════════════════════
+// ═══════════════════════════════════════════════════════
 function startRec(){
   recording=true;elapsedSec=0;totalDist=0;
   lastPos=[...userPos];alerted.clear();sessionDangersCrossed=0;
@@ -890,9 +873,9 @@ function stopRecord(){
   save();showRecap(sess);
 }
 
-// ══════════════════════════════════════════════════
-// RECAP / HISTORY / MARKERS / STATUS — inchangés
-// ══════════════════════════════════════════════════
+// ═══════════════════════════════════════════════════════
+// RECAP / HISTORY / MODALS
+// ═══════════════════════════════════════════════════════
 function showRecap(s){
   document.getElementById('rc-dist').textContent=s.dist.toFixed(2)+' km';
   document.getElementById('rc-time').textContent=fmtTime(s.time);
@@ -947,22 +930,22 @@ function renderDangers(){
 }
 window.delSession=function(id){if(!confirm('Supprimer ?'))return;sessions=sessions.filter(s=>s.id!==id);save();renderSessions();};
 window.delDangerList=function(id){if(!confirm('Supprimer ?'))return;dangers=dangers.filter(d=>d.id!==id);if(dangerMarkers[id]){map.removeLayer(dangerMarkers[id]);delete dangerMarkers[id];}save();updateDangerCount();renderDangers();};
-window.gotoD=function(id){const d=dangers.find(x=>x.id===id);if(!d||!map)return;document.getElementById('ov-history').classList.remove('show');map.setView([d.lat,d.lng],17);setTimeout(()=>{if(dangerMarkers[id])dangerMarkers[id].openPopup();},500);};
+window.gotoD=function(id){const d=dangers.find(x=>x.id===id);if(!d||!map)return;document.getElementById('ov-history').classList.remove('show');map.setView([d.lat,d.lng],17,{animate:false});setTimeout(()=>{if(dangerMarkers[id])dangerMarkers[id].openPopup();},300);};
 function setStatus(msg,hide=false){
   const el=document.getElementById('status-bar');
   el.textContent=msg;el.classList.remove('hidden');
   if(hide)setTimeout(()=>el.classList.add('hidden'),4000);
 }
 
-// ══════════════════════════════════════════════════
+// ═══════════════════════════════════════════════════════
 // INIT
-// ══════════════════════════════════════════════════
+// ═══════════════════════════════════════════════════════
 load();
 document.addEventListener('DOMContentLoaded',()=>{
   initMap();
   dangers.forEach(addMarker);
   updateDangerCount();
-  if(forwardDir!==null)setStatus(`🧭 Cap avant : ${Math.round(forwardDir)}° (${degToCardinal(forwardDir)})`,true);
+  if(forwardDir!==null) setStatus(`🧭 Cap avant : ${Math.round(forwardDir)}° (${degToCard(forwardDir)})`,true);
 });
 </script>
 </body>
