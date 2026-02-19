@@ -339,7 +339,7 @@ const kalman = {
 
     const dt = Math.max((ts - this.timestamp) / 1000, 0.1); // secondes
     // Variance de processus : on suppose le véhicule peut bouger jusqu'à 3 m/s²
-    const Q = 3 * dt;
+    const Q = 8 * dt;
     // Variance de mesure = précision déclarée
     const R = Math.max(acc, 2);
 
@@ -425,9 +425,9 @@ function updateUserMarker(pos,hdg){
 // ══════════════════════════════════════════════════
 let firstFix=true, prevPos=null;
 // Seuils de filtrage
-const MIN_ACCURACY = 20;   // ignorer si précision > 20m
-const MIN_SPEED_MS = 0.5;  // ignorer mouvement si vitesse < 0.5 m/s (~1.8 km/h)
-const MIN_DIST_M   = 1.5;  // ignorer déplacement < 1.5m entre fixes
+const MIN_ACCURACY = 40;   // ignorer si précision > 40m
+const MIN_SPEED_MS = 0.2;  // ignorer mouvement si vitesse < 0.2 m/s (~0.7 km/h)
+const MIN_DIST_M   = 0.5;  // ignorer déplacement < 0.5m entre fixes
 
 function startGPS(){
   if(!navigator.geolocation){setStatus('❌ GPS non disponible');return;}
